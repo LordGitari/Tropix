@@ -229,7 +229,7 @@ export function DetailScene({ modelPath, direction, bgFrom, bgTo }: { modelPath:
         global
         cursor
         speed={1.4}
-        polar={[-Math.PI / 2, Math.PI / 2]}
+        polar={[-Infinity, Infinity]}
         azimuth={[-Infinity, Infinity]}
       >
         <Float speed={2} rotationIntensity={0.1} floatIntensity={0.5} floatingRange={[-0.04, 0.04]}>
