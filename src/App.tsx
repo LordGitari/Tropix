@@ -263,7 +263,7 @@ export default function App() {
 
       {/* ── HEADER ── */}
       <nav className="w-full z-30 flex items-center justify-between px-5 sm:px-8 py-6 gap-3 max-w-6xl mx-auto">
-        <span className="font-black text-white tracking-widest text-3xl sm:text-4xl">CIAO</span>
+        <span className="font-black text-white tracking-widest text-3xl sm:text-4xl">TROPIX</span>
         <div className="flex items-center gap-4 sm:gap-6">
         <button
           type="button"
@@ -400,7 +400,7 @@ export default function App() {
       {!isExpanded && (
         <div className="relative z-10 w-full max-w-6xl px-8 pb-24 mt-8 flex flex-col gap-32">
 
-          {/* The CIAO Story */}
+          {/* The TROPIX Story */}
           <motion.div
             initial={{ opacity: 0, y: 60 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -416,7 +416,7 @@ export default function App() {
               Born from a love of nature. Built for the bold.
             </h2>
             <p className="text-white/50 text-base leading-relaxed max-w-xl">
-              CIAO started in a small kitchen with one obsession — making beverages that taste like the real thing, because they are. No shortcuts. No fillers. Just cold-pressed fruits, living cultures, and botanicals that have been trusted for centuries. Every bottle is a small act of rebellion against the ordinary.
+              TROPIX started in a small kitchen with one obsession — making beverages that taste like the real thing, because they are. No shortcuts. No fillers. Just cold-pressed fruits, living cultures, and botanicals that have been trusted for centuries. Every bottle is a small act of rebellion against the ordinary.
             </p>
             <p className="text-white/30 text-sm leading-relaxed max-w-lg">
               Today, four flavors. Tomorrow, the world.
@@ -431,11 +431,11 @@ export default function App() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="w-full flex flex-col items-center gap-4 py-16 border-t border-white/10"
           >
-            <span className="font-black text-white tracking-widest text-3xl">CIAO</span>
+            <span className="font-black text-white tracking-widest text-3xl">TROPIX</span>
             <p className="text-white/50 text-base text-center" style={{ fontStyle: "italic" }}>
               "Crafted with intention. Enjoyed without compromise."
             </p>
-            <p className="text-white/20 text-xs tracking-widest uppercase mt-2">&copy; {new Date().getFullYear()} CIAO Beverages. All rights reserved.</p>
+            <p className="text-white/20 text-xs tracking-widest uppercase mt-2">&copy; {new Date().getFullYear()} TROPIX Beverages. All rights reserved.</p>
           </motion.div>
 
         </div>

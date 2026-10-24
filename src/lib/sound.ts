@@ -1,12 +1,13 @@
 // Small synthesised sound effects (Web Audio, no audio files).
 // Sounds only ever play in response to a click, so browsers allow them.
 
-const MUTE_KEY = "ciao-muted";
+const MUTE_KEY = "tropix-muted";
+const OLD_MUTE_KEY = "ciao-muted"; // before the TROPIX rename; still read so nothing is lost
 
 let ctx: AudioContext | null = null;
 let muted = (() => {
   try {
-    return localStorage.getItem(MUTE_KEY) === "1";
+    return (localStorage.getItem(MUTE_KEY) ?? localStorage.getItem(OLD_MUTE_KEY)) === "1";
   } catch {
     return false;
   }

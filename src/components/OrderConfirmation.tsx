@@ -8,7 +8,7 @@ export function OrderConfirmation({ lines, total, accent, onDone }: {
   accent: string;
   onDone: () => void;
 }) {
-  const [orderNo] = useState(() => `CIAO-${Math.floor(100000 + Math.random() * 900000)}`);
+  const [orderNo] = useState(() => `TROPIX-${Math.floor(100000 + Math.random() * 900000)}`);
 
   return (
     <motion.div

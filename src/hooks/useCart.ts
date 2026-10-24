@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { drinksData, PRICE, MIX_PACK_MIN_FLAVOURS, MIX_PACK_DISCOUNT, type Drink } from "../data/drinks";
 
 type Quantities = Record<number, number>;
-const STORAGE_KEY = "ciao-cart";
+const STORAGE_KEY = "tropix-cart";
+const OLD_STORAGE_KEY = "ciao-cart"; // before the TROPIX rename; still read so nothing is lost
 
 function loadCart(): Quantities {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = (localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(OLD_STORAGE_KEY));
     return raw ? (JSON.parse(raw) as Quantities) : {};
   } catch {
     return {};

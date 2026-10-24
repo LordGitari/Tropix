@@ -32,7 +32,7 @@ export function ContactPanel({ open, onClose }: { open: boolean; onClose: () => 
             exit={{ opacity: 0, y: -20 }}
             className="px-8 pb-10 flex flex-col gap-4 flex-1"
           >
-            <h2 className="text-white font-black text-3xl leading-tight mb-2">Say ciao 👋</h2>
+            <h2 className="text-white font-black text-3xl leading-tight mb-2">Say hi 🌴</h2>
             <p className="text-white/50 text-sm leading-relaxed mb-2">
               Questions, wholesale, or just want to tell us your favourite flavour? Drop us a line.
             </p>

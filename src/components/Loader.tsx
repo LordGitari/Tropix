@@ -60,7 +60,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
             />
           </svg>
           <div className="flex flex-col items-center gap-1">
-            <span className="font-black text-white tracking-widest text-3xl">CIAO</span>
+            <span className="font-black text-white tracking-widest text-3xl">TROPIX</span>
             <span className="text-white/40 text-xs font-black tracking-[0.3em] tabular-nums">
               POURING… {pct}%
             </span>
