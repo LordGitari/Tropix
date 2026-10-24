@@ -4,9 +4,9 @@ import { Canvas } from "@react-three/fiber";
 import { BottleScene } from "./components/BottleModel";
 import { DrinkDetail } from "./components/DrinkDetail";
 import { Loader } from "./components/Loader";
-import { SidePanel } from "./components/SidePanel";
 import { ContactPanel } from "./components/ContactPanel";
-import { OrderConfirmation } from "./components/OrderConfirmation";
+import { CartDrawer } from "./components/CartDrawer";
+import { useCart } from "./hooks/useCart";
 import { drinksData, type Drink } from "./data/drinks";
 
 function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredDrink, setHoveredDrink, setRippleOrigin, onClick }: {
@@ -93,16 +93,14 @@ export default function App() {
   const [launching, setLaunching] = useState<Drink | null>(null);
   const [splash, setSplash] = useState<{ x: number; y: number; scale: number; drink: Drink } | null>(null);
   const launchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const [drawerDrink, setDrawerDrink] = useState<Drink | null>(null);
-  const [drawerQty, setDrawerQty] = useState(1);
   const [introComplete, setIntroComplete] = useState<boolean>(false);
   const [direction, setDirection] = useState(1);
 
-  const [checkedOut, setCheckedOut] = useState(false);
+  const cart = useCart();
+  const [cartOpen, setCartOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
 
-  const openDrawer = (drink: Drink) => { setDrawerDrink(drink); setDrawerQty(1); setCheckedOut(false); };
-  const closeDrawer = useCallback(() => setDrawerDrink(null), []);
+  const closeCart = useCallback(() => setCartOpen(false), []);
   const closeContact = useCallback(() => setContactOpen(false), []);
 
   const stepDrink = useCallback((dir: number) => {
@@ -225,6 +223,7 @@ export default function App() {
       {/* ── HEADER ── */}
       <nav className="w-full z-30 flex items-center justify-between px-8 py-6 max-w-6xl mx-auto">
         <span className="font-black text-white tracking-widest text-4xl">CIAO</span>
+        <div className="flex items-center gap-6">
         <button
           type="button"
           onClick={() => setContactOpen(true)}
@@ -232,6 +231,32 @@ export default function App() {
         >
           Contact Us
         </button>
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          aria-label={`Open cart, ${cart.count} item${cart.count === 1 ? "" : "s"}`}
+          className="relative w-11 h-11 rounded-full border border-white/25 text-white flex items-center justify-center transition-all duration-300 hover:bg-white hover:text-black"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M6 7h12l-1 13H7L6 7z" />
+            <path d="M9 7a3 3 0 0 1 6 0" />
+          </svg>
+          <AnimatePresence>
+            {cart.count > 0 && (
+              <motion.span
+                key={cart.count}
+                initial={{ scale: 1.8 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-white text-black text-[11px] font-black flex items-center justify-center tabular-nums"
+              >
+                {cart.count}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+        </div>
       </nav>
 
       {/* Kinetic Background Text */}
@@ -303,11 +328,11 @@ export default function App() {
                 index={drinksData.findIndex((d) => d.id === selectedDrink!.id)}
                 total={drinksData.length}
                 direction={direction}
-                keyboardEnabled={!drawerDrink && !contactOpen}
+                keyboardEnabled={!cartOpen && !contactOpen}
                 onPrev={showPrev}
                 onNext={showNext}
                 onBack={closeDetail}
-                onOrder={() => openDrawer(selectedDrink!)}
+                onAddToCart={() => cart.add(selectedDrink!.id)}
               />
             </motion.div>
           )}
@@ -359,59 +384,8 @@ export default function App() {
         </div>
       )}
 
-      {/* ── ORDER DRAWER ── */}
-      <SidePanel open={!!drawerDrink} onClose={closeDrawer} label={checkedOut ? "Thank You" : "Your Order"}>
-        {drawerDrink && (checkedOut ? (
-          <OrderConfirmation
-            lines={[{ label: `${drawerQty} × ${drawerDrink.title}`, amount: drawerQty * 3.99 }]}
-            total={drawerQty * 3.99}
-            accent={drawerDrink.bgFrom}
-            onDone={closeDrawer}
-          />
-        ) : (
-          <>
-              <div
-                className="mx-6 rounded-3xl flex flex-col items-center justify-center py-8 gap-2"
-                style={{ background: `linear-gradient(135deg, ${drawerDrink.bgFrom}22, ${drawerDrink.bgTo}11)`, border: "1px solid rgba(255,255,255,0.08)" }}
-              >
-                <img src={drawerDrink.image} alt={drawerDrink.title} style={{ height: "180px", objectFit: "contain", filter: `drop-shadow(0 20px 30px rgba(0,0,0,0.5)) drop-shadow(0 0 30px ${drawerDrink.bgFrom}88)` }} />
-                <p className="text-white/40 text-xs tracking-widest uppercase mt-2">{drawerDrink.tagline}</p>
-                <p className="text-white font-black text-2xl">{drawerDrink.title}</p>
-                <p className="text-white/50 text-sm">$3.99 / bottle</p>
-              </div>
-
-              <div className="px-8 mt-8 flex flex-col gap-3">
-                <p className="text-white/40 text-xs tracking-[0.25em] uppercase">How many bottles?</p>
-                <div className="flex items-center gap-5">
-                  <button
-                    onClick={() => setDrawerQty(q => Math.max(1, q - 1))}
-                    className="w-11 h-11 rounded-full border border-white/20 text-white font-black text-xl flex items-center justify-center hover:bg-white/10 transition-all"
-                  >−</button>
-                  <span className="text-white font-black text-3xl w-8 text-center">{drawerQty}</span>
-                  <button
-                    onClick={() => setDrawerQty(q => q + 1)}
-                    className="w-11 h-11 rounded-full border border-white/20 text-white font-black text-xl flex items-center justify-center hover:bg-white/10 transition-all"
-                  >+</button>
-                </div>
-              </div>
-
-              <div className="mx-8 mt-6 rounded-2xl px-5 py-4 flex justify-between items-center" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <span className="text-white/50 text-sm">{drawerQty} × {drawerDrink.title}</span>
-                <span className="text-white font-black text-lg">${(drawerQty * 3.99).toFixed(2)}</span>
-              </div>
-
-              <div className="mt-auto px-8 pb-10 pt-6">
-                <button
-                  onClick={() => setCheckedOut(true)}
-                  className="w-full py-5 bg-white text-black font-black rounded-2xl tracking-widest uppercase transition-all duration-300 hover:bg-black hover:text-white"
-                  style={{ boxShadow: "0 8px 30px rgba(0,0,0,0.3)" }}
-                >
-                  Proceed to Checkout — ${(drawerQty * 3.99).toFixed(2)}
-                </button>
-              </div>
-          </>
-        ))}
-      </SidePanel>
+      {/* ── CART ── */}
+      <CartDrawer open={cartOpen} onClose={closeCart} cart={cart} />
 
       <ContactPanel open={contactOpen} onClose={closeContact} />
     </div>

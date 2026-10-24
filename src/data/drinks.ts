@@ -95,3 +95,9 @@ export const ingredientBenefits: Record<string, string> = {
   "Raw Honey": "Natural prebiotic & antimicrobial",
   "Lemon Zest": "Brightens flavour, boosts immunity",
 };
+
+export const PRICE = 3.99;
+
+// Mix pack: a discount once the cart holds enough different flavours.
+export const MIX_PACK_MIN_FLAVOURS = 3;
+export const MIX_PACK_DISCOUNT = 0.15;

@@ -2,7 +2,7 @@ import { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence, animate, type Variants } from "framer-motion";
 import { Canvas } from "@react-three/fiber";
 import { DetailScene } from "./BottleModel";
-import { ingredientBenefits, type Drink } from "../data/drinks";
+import { ingredientBenefits, PRICE, type Drink } from "../data/drinks";
 
 const contentVariants: Variants = {
   enter: (dir: number) => ({ opacity: 0, x: dir * 40 }),
@@ -35,6 +35,45 @@ function AnimatedTitle({ text }: { text: string }) {
         </span>
       ))}
     </>
+  );
+}
+
+function AddToCartButton({ drink, onAdd }: { drink: Drink; onAdd: () => void }) {
+  const [added, setAdded] = useState(0);
+
+  useEffect(() => {
+    if (!added) return;
+    const t = setTimeout(() => setAdded(0), 1400);
+    return () => clearTimeout(t);
+  }, [added]);
+
+  return (
+    <motion.button
+      variants={itemVariants}
+      type="button"
+      onClick={() => { onAdd(); setAdded((n) => n + 1); }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      className="relative w-full py-5 font-black rounded-2xl tracking-widest uppercase text-black overflow-hidden"
+      style={{
+        fontSize: "1rem",
+        background: `linear-gradient(135deg, #ffffff, ${drink.bgFrom}55)`,
+        boxShadow: `0 8px 30px rgba(0,0,0,0.25), 0 0 40px ${drink.bgFrom}44`,
+      }}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={added ? "added" : "add"}
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -20, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="block"
+        >
+          {added ? "Added to cart ✓" : `Add to Cart • $${PRICE}`}
+        </motion.span>
+      </AnimatePresence>
+    </motion.button>
   );
 }
 
@@ -103,7 +142,7 @@ function IngredientChips({ drink }: { drink: Drink }) {
   );
 }
 
-export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, onPrev, onNext, onBack, onOrder }: {
+export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, onPrev, onNext, onBack, onAddToCart }: {
   drink: Drink;
   index: number;
   total: number;
@@ -112,7 +151,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
   onPrev: () => void;
   onNext: () => void;
   onBack: () => void;
-  onOrder: () => void;
+  onAddToCart: () => void;
 }) {
   useEffect(() => {
     if (!keyboardEnabled) return;
@@ -246,21 +285,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
               <IngredientChips drink={drink} />
             </motion.div>
 
-            <motion.button
-              variants={itemVariants}
-              type="button"
-              onClick={onOrder}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full py-5 font-black rounded-2xl tracking-widest uppercase text-black"
-              style={{
-                fontSize: "1rem",
-                background: `linear-gradient(135deg, #ffffff, ${drink.bgFrom}55)`,
-                boxShadow: `0 8px 30px rgba(0,0,0,0.25), 0 0 40px ${drink.bgFrom}44`,
-              }}
-            >
-              Order Now • $3.99
-            </motion.button>
+            <AddToCartButton drink={drink} onAdd={onAddToCart} />
           </motion.div>
         </AnimatePresence>
       </div>
