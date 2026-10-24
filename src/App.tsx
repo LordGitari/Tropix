@@ -7,6 +7,7 @@ import { Loader } from "./components/Loader";
 import { ContactPanel } from "./components/ContactPanel";
 import { CartDrawer } from "./components/CartDrawer";
 import { FlavourQuiz } from "./components/FlavourQuiz";
+import { playOpen, playSwoosh, playClink, isMuted, setMuted } from "./lib/sound";
 import { useCart } from "./hooks/useCart";
 import { drinksData, type Drink } from "./data/drinks";
 
@@ -104,9 +105,15 @@ export default function App() {
   const closeCart = useCallback(() => setCartOpen(false), []);
   const closeContact = useCallback(() => setContactOpen(false), []);
   const [quizOpen, setQuizOpen] = useState(false);
+  const [soundOff, setSoundOff] = useState(isMuted);
+  const toggleSound = () => {
+    setMuted(!soundOff);
+    setSoundOff(!soundOff);
+  };
   const closeQuiz = useCallback(() => setQuizOpen(false), []);
 
   const stepDrink = useCallback((dir: number) => {
+    playSwoosh();
     setDirection(dir);
     setSelectedDrink((current) => {
       const i = drinksData.findIndex((d) => d.id === current?.id);
@@ -122,6 +129,7 @@ export default function App() {
     setRippleOrigin(null);
     setDirection(1);
     setLaunching(drink);
+    playOpen();
     // Splash circle (120px) scaled until it covers the farthest screen corner.
     const reach = Math.hypot(Math.max(origin.x, window.innerWidth - origin.x), Math.max(origin.y, window.innerHeight - origin.y));
     setSplash({ ...origin, scale: (reach * 2) / 120, drink });
@@ -224,13 +232,29 @@ export default function App() {
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <nav className="w-full z-30 flex items-center justify-between px-8 py-6 max-w-6xl mx-auto">
-        <span className="font-black text-white tracking-widest text-4xl">CIAO</span>
-        <div className="flex items-center gap-6">
+      <nav className="w-full z-30 flex items-center justify-between px-5 sm:px-8 py-6 gap-3 max-w-6xl mx-auto">
+        <span className="font-black text-white tracking-widest text-3xl sm:text-4xl">CIAO</span>
+        <div className="flex items-center gap-4 sm:gap-6">
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label={soundOff ? "Turn sound on" : "Turn sound off"}
+          aria-pressed={!soundOff}
+          className="w-11 h-11 rounded-full border border-white/25 text-white flex items-center justify-center transition-all duration-300 hover:bg-white hover:text-black"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M11 5 6 9H3v6h3l5 4V5z" />
+            {soundOff ? (
+              <path d="m22 9-6 6M16 9l6 6" />
+            ) : (
+              <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+            )}
+          </svg>
+        </button>
         <button
           type="button"
           onClick={() => setContactOpen(true)}
-          className="text-white font-bold text-sm tracking-widest uppercase relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1.5px] after:bg-white after:transition-all after:duration-300 hover:after:w-full"
+          className="text-white font-bold text-xs sm:text-sm tracking-wider sm:tracking-widest whitespace-nowrap uppercase relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1.5px] after:bg-white after:transition-all after:duration-300 hover:after:w-full"
         >
           Contact Us
         </button>
@@ -346,7 +370,7 @@ export default function App() {
                 onPrev={showPrev}
                 onNext={showNext}
                 onBack={closeDetail}
-                onAddToCart={() => cart.add(selectedDrink!.id)}
+                onAddToCart={() => { cart.add(selectedDrink!.id); playClink(); }}
               />
             </motion.div>
           )}
