@@ -8,7 +8,7 @@ import { ContactPanel } from "./components/ContactPanel";
 import { CartDrawer } from "./components/CartDrawer";
 import { playOpen, playSwoosh, playClink, isMuted, setMuted } from "./lib/sound";
 import { useCart } from "./hooks/useCart";
-import { drinksData, PRICE, type Drink } from "./data/drinks";
+import { drinksData, type Drink } from "./data/drinks";
 
 // Where each flavour's ambient glow sits (one per drink, spread behind the carousel).
 const AMBIENT_SPOTS = [
@@ -73,11 +73,11 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
       animate={animate}
       transition={transition}
       className="relative shrink-0 snap-center"
-      style={{ width: "180px" }}
+      style={{ width: "180px", height: "380px" }}
     >
       <Canvas
         camera={{ position: [0, 0, 3.6], fov: 38 }}
-        style={{ width: "100%", height: "380px" }}
+        style={{ width: "100%", height: "100%" }}
         gl={{ antialias: true, alpha: true }}
         shadows
       >
@@ -92,15 +92,6 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
           />
         </Suspense>
       </Canvas>
-      <div className="-mt-1 text-center pointer-events-none">
-        <p
-          className="font-black text-sm tracking-[0.25em] uppercase transition-colors duration-300"
-          style={{ color: isHovered ? drink.bgFrom : "rgba(255,255,255,0.85)" }}
-        >
-          {drink.shortName}
-        </p>
-        <p className="text-white/40 text-xs mt-1 tabular-nums">${PRICE.toFixed(2)}</p>
-      </div>
     </motion.div>
   );
 }
