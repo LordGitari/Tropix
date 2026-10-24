@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Canvas } from "@react-three/fiber";
 import { BottleScene } from "./components/BottleModel";
 import { DrinkDetail } from "./components/DrinkDetail";
+import { Loader } from "./components/Loader";
 import { drinksData, type Drink } from "./data/drinks";
 
 function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredDrink, setHoveredDrink, setRippleOrigin, onClick }: {
@@ -133,10 +134,7 @@ export default function App() {
     setSelectedDrink(null);
   }, []);
 
-  useEffect(() => {
-    const t = setTimeout(() => setIntroComplete(true), 1400);
-    return () => clearTimeout(t);
-  }, []);
+  const handleLoaded = useCallback(() => setIntroComplete(true), []);
 
   const activeDrink = hoveredDrink || selectedDrink;
 
@@ -190,6 +188,8 @@ export default function App() {
           transition: "left 0.6s ease, top 0.6s ease, background 0.5s ease",
         }}
       />
+      <Loader onDone={handleLoaded} />
+
       {/* Colour splash that floods out from the clicked bottle */}
       <AnimatePresence>
         {splash && (
