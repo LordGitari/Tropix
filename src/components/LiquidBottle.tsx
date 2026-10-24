@@ -178,10 +178,11 @@ const HEADLINE_TOP = 0;
 const HEADLINE_BOTTOM = -0.27;
 const HEADLINE_LEFT = -0.222;
 const PX_PER_UNIT = 3600;
-const CAP_HEIGHT = 0.045;
-const FLAVOUR_CAP_HEIGHT = 0.11; // the flavour is the line that matters most
-const FLAVOUR_FONT = 'Impact, Haettenschweiler, "Arial Narrow", "Arial Black", sans-serif';
-const SUPPORT_FONT = '"Arial Black", "Segoe UI", Arial, sans-serif';
+// Same look as the original artwork (bold grotesque, three equal tight lines),
+// scaled up ~20% from its 0.052 capitals so it stays readable.
+const CAP_HEIGHT = 0.062;
+const HEADLINE_FONT = '"Arial Black", "Helvetica Neue", Arial, sans-serif';
+const SMOOTHIE_WIDTH = 7.15; // the original's "SMOOTHIE" is 7.15 capital-heights wide
 
 const HEADLINE_GEOMETRY = new THREE.CylinderGeometry(
   HEADLINE_RADIUS, HEADLINE_RADIUS, HEADLINE_TOP - HEADLINE_BOTTOM, 96, 1, true,
@@ -208,25 +209,24 @@ function headlineTexture(drink: Drink) {
   const left = (HEADLINE_RADIUS * (Math.asin(HEADLINE_LEFT / HEADLINE_RADIUS) - HEADLINE_THETA[0])) * PX_PER_UNIT;
   const py = (y: number) => (HEADLINE_TOP - y) * PX_PER_UNIT;
   // Sized by capital height (measured, so any fallback font lands the same size).
-  const line = (text: string, family: string, capHeight: number, baseline: number, tracking: number, maxWidth: number) => {
-    ctx.font = `900 100px ${family}`;
-    const capRatio = ctx.measureText("H").actualBoundingBoxAscent / 100;
-    const size = (capHeight / capRatio) * PX_PER_UNIT;
-    ctx.font = `900 ${size}px ${family}`;
-    ctx.letterSpacing = `${size * tracking}px`;
-    const width = ctx.measureText(text).width;
+  // Heavy face, squeezed horizontally to the original's proportions.
+  ctx.font = `900 100px ${HEADLINE_FONT}`;
+  const size = (CAP_HEIGHT / (ctx.measureText("H").actualBoundingBoxAscent / 100)) * PX_PER_UNIT;
+  ctx.font = `900 ${size}px ${HEADLINE_FONT}`;
+  ctx.letterSpacing = `${-size * 0.02}px`;
+  const squeeze = (SMOOTHIE_WIDTH * CAP_HEIGHT * PX_PER_UNIT) / ctx.measureText("SMOOTHIE").width;
+  const line = (text: string, baseline: number) => {
+    const maxWidth = 0.48 * PX_PER_UNIT;
+    const width = ctx.measureText(text).width * squeeze;
     ctx.save();
     ctx.translate(left, py(baseline));
-    if (width > maxWidth) ctx.scale(maxWidth / width, 1);
+    ctx.scale(squeeze * Math.min(1, maxWidth / width), 1);
     ctx.fillText(text, 0, 0);
     ctx.restore();
   };
-  // Flavour: tall, condensed and heavy so it reads even on the small carousel
-  // bottles. The supporting lines are smaller with open letter spacing, which
-  // keeps small capitals from clumping together.
-  line(drink.shortName, FLAVOUR_FONT, FLAVOUR_CAP_HEIGHT, -0.13, 0.03, 0.46 * PX_PER_UNIT);
-  line("SMOOTHIE", SUPPORT_FONT, CAP_HEIGHT, -0.19, 0.12, 0.42 * PX_PER_UNIT);
-  line("MOCKUP", SUPPORT_FONT, CAP_HEIGHT, -0.245, 0.12, 0.42 * PX_PER_UNIT);
+  line(drink.shortName, -0.085);
+  line("SMOOTHIE", -0.165);
+  line("MOCKUP", -0.245);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
