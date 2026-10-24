@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { drinksData, type Drink } from "../data/drinks";
+import { useQuality } from "../lib/quality";
 
 // The source models are a single solid mesh with the drink painted on, so the
 // bottle is rebuilt from parts:
@@ -75,6 +76,19 @@ const FILL_SHARE = (() => {
   for (let i = 1; i < VOLUME_SAMPLES.length; i += 3) if (VOLUME_SAMPLES[i] < FILL_LEVEL) below++;
   return below / SAMPLE_COUNT;
 })();
+
+// Lighter glass for lower quality tiers: reflections and a faint tint, but no
+// refraction (which costs a second render of the scene every frame).
+const GLASS_LITE_MATERIAL = new THREE.MeshPhysicalMaterial({
+  color: "#ffffff",
+  transparent: true,
+  opacity: 0.18,
+  roughness: 0.05,
+  clearcoat: 1,
+  clearcoatRoughness: 0.03,
+  envMapIntensity: 1.6,
+  depthWrite: false,
+});
 
 const GLASS_MATERIAL = new THREE.MeshPhysicalMaterial({
   color: "#ffffff",
@@ -325,13 +339,14 @@ function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
     : null;
 
   // Own copy of the glass so per-bottle fades stay per bottle.
-  return { print: place(printMat, 1.02), cap: place(capMat), headlineMat, glass: GLASS_MATERIAL.clone(), liquid: liquidMaterial(colour) };
+  return { print: place(printMat, 1.02), cap: place(capMat), headlineMat, glass: GLASS_MATERIAL.clone(), glassLite: GLASS_LITE_MATERIAL.clone(), liquid: liquidMaterial(colour) };
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP = new THREE.Vector3();
 
 export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; modelPath: string }) {
+  const { refractiveGlass } = useQuality();
   const parts = useMemo(() => buildParts(source, drinksData.find((d) => d.model === modelPath)), [source, modelPath]);
   const liquidMesh = useRef<THREE.Mesh>(null);
   const heights = useRef<Float32Array>(null);
@@ -379,7 +394,7 @@ export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; mo
       <primitive object={parts.print} />
       {parts.headlineMat && <mesh geometry={HEADLINE_GEOMETRY} material={parts.headlineMat} />}
       <primitive object={parts.cap} />
-      <mesh geometry={GLASS_GEOMETRY} material={parts.glass} />
+      <mesh geometry={GLASS_GEOMETRY} material={refractiveGlass ? parts.glass : parts.glassLite} />
     </group>
   );
 }

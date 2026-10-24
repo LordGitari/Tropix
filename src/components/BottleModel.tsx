@@ -4,6 +4,7 @@ import { useGLTF, ContactShadows, Float, Environment, Lightformer } from "@react
 import type { MotionValue } from "framer-motion";
 import * as THREE from "three";
 import { LiquidBottle } from "./LiquidBottle";
+import { useQuality } from "../lib/quality";
 
 // Something for the glass to reflect: light strips either side, softbox on top.
 function StudioEnvironment() {
@@ -116,6 +117,7 @@ export function BottleScene({
 }) {
   const root = useRef<THREE.Group>(null);
   useFade(root, fade);
+  const { shadowResolution } = useQuality();
   // Models span y = -0.95..0.95. Shifting the scene down leaves headroom for
   // the hover lift + scale, and puts the contact shadow just under the base.
   return (
@@ -127,7 +129,7 @@ export function BottleScene({
       <pointLight position={[0, -2, 2]} intensity={hovered ? 0.8 : 0.2} color="#ffffff" />
       <StudioEnvironment />
       <group ref={root} position={[0, -0.12, 0]}>
-        <ContactShadows position={[0, -0.97, 0]} opacity={hovered ? 0.55 : 0.3} scale={2} blur={2} far={2} />
+        <ContactShadows position={[0, -0.97, 0]} opacity={hovered ? 0.55 : 0.3} scale={2} blur={2} far={2} resolution={shadowResolution} />
         <BottleModel
           modelPath={modelPath}
           hovered={hovered}
@@ -221,6 +223,7 @@ const BUBBLE_TOP = 1.3;
 
 function Bubbles({ color }: { color: string }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
+  const count = useQuality().bubbles; // fewer on lower quality tiers
   const bubbles = useRef(BUBBLE_SEEDS.map((b) => ({ ...b })));
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
@@ -228,6 +231,7 @@ function Bubbles({ color }: { color: string }) {
     if (!mesh.current) return;
     const time = state.clock.elapsedTime;
     bubbles.current.forEach((b, i) => {
+      if (i >= count) return;
       b.y += b.speed * delta;
       if (b.y > BUBBLE_TOP) b.y = BUBBLE_BOTTOM;
       // Grow in at the bottom, shrink away near the top.
@@ -245,7 +249,7 @@ function Bubbles({ color }: { color: string }) {
   });
 
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, BUBBLE_SEEDS.length]}>
+    <instancedMesh ref={mesh} args={[undefined, undefined, BUBBLE_SEEDS.length]} count={count}>
       <sphereGeometry args={[1, 12, 12]} />
       <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} transparent opacity={0.55} roughness={0.15} metalness={0.1} />
     </instancedMesh>
@@ -332,6 +336,7 @@ export function DetailScene({ modelPath, direction, bgFrom, bgTo, track, fade }:
 }) {
   const root = useRef<THREE.Group>(null);
   useFade(root, fade);
+  const { shadowResolution } = useQuality();
   return (
     <>
       <ambientLight intensity={0.9} />
@@ -347,7 +352,7 @@ export function DetailScene({ modelPath, direction, bgFrom, bgTo, track, fade }:
           </Float>
         </FreeRotate>
         <Bubbles color={bgFrom} />
-        <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={3} blur={2.4} far={2.5} />
+        <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={3} blur={2.4} far={2.5} resolution={shadowResolution} />
       </group>
     </>
   );

@@ -1,6 +1,8 @@
-import { Suspense, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
+import { PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
+import { stepDown, stepUp, useQuality } from "../lib/quality";
 
 // One WebGL canvas for the whole site. Every 3D area on the page is a <SceneView>:
 // an ordinary, empty div in the layout. The shared canvas sits fixed over the
@@ -128,14 +130,38 @@ function Views() {
   return entries.map(([id, entry]) => <ViewPortal key={id} {...entry} />);
 }
 
+// Watches the frame rate: drops a quality tier when it struggles (under ~45fps),
+// steps back up when there is headroom, and settles low if it keeps flip-flopping.
+// Starts a few seconds in, so the one-off work of loading isn't mistaken for a slow device.
+function FrameRateWatcher() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!ready) return null;
+  return (
+    <PerformanceMonitor
+      bounds={(refreshRate) => (refreshRate > 90 ? [50, 90] : [45, 57])}
+      onDecline={stepDown}
+      onIncline={stepUp}
+      flipflops={3}
+      onFallback={stepDown}
+    />
+  );
+}
+
 export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLElement | null> }) {
+  const quality = useQuality();
   return (
     <Canvas
       eventSource={eventSource as RefObject<HTMLElement>}
       eventPrefix="client"
+      dpr={[1, quality.dpr]}
       gl={{ antialias: true, alpha: true }}
       style={{ position: "fixed", inset: 0, zIndex: 20, pointerEvents: "none" }}
     >
+      <FrameRateWatcher />
       <Views />
     </Canvas>
   );
