@@ -6,7 +6,6 @@ import { DrinkDetail } from "./components/DrinkDetail";
 import { Loader } from "./components/Loader";
 import { ContactPanel } from "./components/ContactPanel";
 import { CartDrawer } from "./components/CartDrawer";
-import { FlavourQuiz } from "./components/FlavourQuiz";
 import { playOpen, playSwoosh, playClink, isMuted, setMuted } from "./lib/sound";
 import { useCart } from "./hooks/useCart";
 import { drinksData, type Drink } from "./data/drinks";
@@ -104,13 +103,11 @@ export default function App() {
 
   const closeCart = useCallback(() => setCartOpen(false), []);
   const closeContact = useCallback(() => setContactOpen(false), []);
-  const [quizOpen, setQuizOpen] = useState(false);
   const [soundOff, setSoundOff] = useState(isMuted);
   const toggleSound = () => {
     setMuted(!soundOff);
     setSoundOff(!soundOff);
   };
-  const closeQuiz = useCallback(() => setQuizOpen(false), []);
 
   const stepDrink = useCallback((dir: number) => {
     playSwoosh();
@@ -340,17 +337,6 @@ export default function App() {
               <p className="md:hidden text-white/35 text-[10px] tracking-[0.3em] uppercase">
                 Swipe for more flavours · Tap to open
               </p>
-              <motion.button
-                type="button"
-                onClick={() => setQuizOpen(true)}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: introComplete ? 1 : 0, y: introComplete ? 0 : 10 }}
-                transition={{ delay: 0.6 }}
-                className="mt-4 px-6 py-3 rounded-full border border-white/25 text-white text-xs font-black tracking-widest uppercase hover:bg-white hover:text-black transition-colors"
-                style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(10px)" }}
-              >
-                ✨ Not sure? Find my flavour
-              </motion.button>
             </motion.div>
           ) : (
             <motion.div
@@ -426,12 +412,6 @@ export default function App() {
       <CartDrawer open={cartOpen} onClose={closeCart} cart={cart} />
 
       <ContactPanel open={contactOpen} onClose={closeContact} />
-
-      <FlavourQuiz
-        open={quizOpen}
-        onClose={closeQuiz}
-        onChoose={(drink) => openDetail(drink, { x: window.innerWidth / 2, y: window.innerHeight / 2 })}
-      />
     </div>
   );
 }
