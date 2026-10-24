@@ -1,13 +1,12 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { drinksData, type Drink } from "../data/drinks";
 
 // The source models are a single solid mesh with the drink painted on, so the
 // bottle is rebuilt from parts:
 //   glass   – a clear, refractive shell traced from the model's silhouette
 //   liquid  – the drink inside, kept level with gravity as the bottle turns
-//   label   – crisp text drawn in code from the drink data, wrapped on the glass
+//   print   – the model's printed text only, sitting on the outside of the glass
 //   cap     – the model's own cap
 // All four models share the same shape; only the textures differ.
 
@@ -25,11 +24,7 @@ const INNER_TOP = 0.74; // the inside of the bottle ends under the cap
 const INSET = 0.94; // inner wall radius as a fraction of the outer
 const FILL_LEVEL = 0.6; // drink height when the bottle stands upright
 const CAP_START = 0.745; // everything above this on the model is the cap
-// The label wraps the straight part of the body, across the front.
-const LABEL_BOTTOM = -0.64;
-const LABEL_TOP = 0.06;
-const LABEL_ARC = (150 * Math.PI) / 180;
-const LABEL_RADIUS = 0.33 * 1.02; // just outside the glass
+const PRINT_RANGE: [number, number] = [-0.9, 0.62];
 
 function radiusAt(y: number) {
   for (let i = 1; i < PROFILE.length; i++) {
@@ -88,18 +83,27 @@ const GLASS_MATERIAL = new THREE.MeshPhysicalMaterial({
   envMapIntensity: 1.3,
 });
 
-// Average drink colour of a model texture (its saturated pixels). Cached per texture.
-const drinkColours = new Map<THREE.Texture, THREE.Color>();
+// Pulls the printed text out of a model texture. The drink colour is found
+// first (the average saturated pixel); then anything clearly lighter and greyer
+// than it is white print, and anything clearly darker is dark print. The result
+// is a clean white / near-black text layer with soft edges. Cached per texture.
+const analysed = new Map<THREE.Texture, { print: THREE.Texture; colour: THREE.Color }>();
 
-function drinkColour(map: THREE.Texture) {
-  const cached = drinkColours.get(map);
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+function analyse(map: THREE.Texture) {
+  const cached = analysed.get(map);
   if (cached) return cached;
-  const size = 256;
+
+  const image = map.image as { width: number; height: number } & CanvasImageSource;
   const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
+  canvas.width = image.width;
+  canvas.height = image.height;
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(map.image as CanvasImageSource, 0, 0, size, size);
-  const d = ctx.getImageData(0, 0, size, size).data;
+  ctx.drawImage(image, 0, 0);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+
   let r = 0, g = 0, b = 0, n = 0;
   for (let i = 0; i < d.length; i += 4) {
     const max = Math.max(d[i], d[i + 1], d[i + 2]);
@@ -108,64 +112,31 @@ function drinkColour(map: THREE.Texture) {
       r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
     }
   }
+  const drinkLum = (r + g + b) / 3 / n;
+
+  for (let i = 0; i < d.length; i += 4) {
+    const max = Math.max(d[i], d[i + 1], d[i + 2]);
+    const min = Math.min(d[i], d[i + 1], d[i + 2]);
+    const sat = max === 0 ? 0 : (max - min) / max;
+    const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+    const light = clamp01((lum - drinkLum - 45) / 20) * clamp01((0.24 - sat) / 0.08);
+    const dark = clamp01((drinkLum - 40 - lum) / 20);
+    const isLight = light >= dark;
+    d[i] = d[i + 1] = d[i + 2] = isLight ? 250 : 18;
+    d[i + 3] = Math.round(Math.max(light, dark) * 255);
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const print = new THREE.CanvasTexture(canvas);
+  print.flipY = map.flipY;
+  print.channel = map.channel;
+  print.colorSpace = THREE.SRGBColorSpace;
+  print.anisotropy = 8;
   const colour = new THREE.Color().setRGB(r / n / 255, g / n / 255, b / n / 255, THREE.SRGBColorSpace);
-  drinkColours.set(map, colour);
-  return colour;
+  const result = { print, colour };
+  analysed.set(map, result);
+  return result;
 }
-
-// The label artwork, drawn at high resolution so the text stays sharp up close.
-// Transparent background: it reads as print on the glass over the drink.
-const labelTextures = new Map<number, THREE.Texture>();
-const FONT = "ui-sans-serif, system-ui, 'Segoe UI', sans-serif";
-
-function labelTexture(drink: Drink) {
-  const cached = labelTextures.get(drink.id);
-  if (cached) return cached;
-
-  const W = 1600;
-  const H = Math.round((W * (LABEL_TOP - LABEL_BOTTOM)) / (LABEL_RADIUS * LABEL_ARC));
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 4;
-
-  const line = (text: string, weight: number, size: number, y: number, spacing = 0, alpha = 1) => {
-    ctx.font = `${weight} ${size}px ${FONT}`;
-    ctx.letterSpacing = `${spacing}px`;
-    ctx.globalAlpha = alpha;
-    ctx.fillText(text, W / 2, y);
-  };
-
-  line("CIAO", 900, 84, H * 0.14, 34);
-  ctx.globalAlpha = 0.7;
-  ctx.fillRect(W / 2 - 90, H * 0.18, 180, 6);
-
-  // Flavour name as big as fits.
-  ctx.font = `900 300px ${FONT}`;
-  ctx.letterSpacing = "-6px";
-  const nameSize = Math.min(300, (300 * W * 0.78) / ctx.measureText(drink.shortName).width);
-  line(drink.shortName, 900, nameSize, H * 0.27 + nameSize * 0.78, -6);
-
-  line(drink.title, 700, 92, H * 0.66, 2);
-  line(drink.tagline, 700, 44, H * 0.76, 10, 0.9);
-  line(`${drink.volume}  ·  ${drink.calories}`, 800, 52, H * 0.93, 8, 0.9);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 16;
-  labelTextures.set(drink.id, texture);
-  return texture;
-}
-
-const LABEL_GEOMETRY = new THREE.CylinderGeometry(
-  LABEL_RADIUS, LABEL_RADIUS, LABEL_TOP - LABEL_BOTTOM, 96, 1, true, -LABEL_ARC / 2, LABEL_ARC,
-).translate(0, (LABEL_TOP + LABEL_BOTTOM) / 2, 0);
 
 // Only draw the part of the model mesh between two heights (in bottle space).
 // Done in the shader so it holds however the bottle is moved or rotated.
@@ -219,7 +190,7 @@ function liquidMaterial(colour: THREE.Color) {
   return { mat, uniforms };
 }
 
-function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
+function buildParts(source: THREE.Object3D) {
   let mesh: THREE.Mesh | undefined;
   source.traverse((c) => {
     if (!mesh && (c as THREE.Mesh).isMesh) mesh = c as THREE.Mesh;
@@ -227,10 +198,26 @@ function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
   if (!mesh) return null;
   const original = mesh.material as THREE.MeshStandardMaterial;
   const map = original.map!;
+  map.anisotropy = 8;
+  const { print, colour } = analyse(map);
 
   // The mesh's transform relative to the model root (it carries quantization scale).
   source.updateMatrixWorld(true);
   const toBottle = new THREE.Matrix4().copy(source.matrixWorld).invert().multiply(mesh.matrixWorld);
+
+  // Lit like paint, plus a little self-glow so white text stays bright even on
+  // the shaded side of the bottle.
+  const printMat = new THREE.MeshStandardMaterial({
+    map: print,
+    emissiveMap: print,
+    emissive: "#ffffff",
+    emissiveIntensity: 0.35,
+    alphaTest: 0.5,
+    alphaToCoverage: true,
+    roughness: 0.45,
+    side: THREE.DoubleSide,
+  });
+  clipHeight(printMat, toBottle, PRINT_RANGE[0], PRINT_RANGE[1]);
 
   const capMat = new THREE.MeshPhysicalMaterial({
     map,
@@ -241,31 +228,24 @@ function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
     side: THREE.DoubleSide,
   });
   clipHeight(capMat, toBottle, CAP_START, 10);
-  const cap = new THREE.Mesh(mesh.geometry, capMat);
-  cap.matrixAutoUpdate = false;
-  cap.matrix.copy(toBottle);
 
-  // Lit like paint, plus a little self-glow so the white text stays bright even
-  // on the shaded side of the bottle.
-  const labelMat = drink
-    ? new THREE.MeshStandardMaterial({
-        map: labelTexture(drink),
-        emissiveMap: labelTexture(drink),
-        emissive: "#ffffff",
-        emissiveIntensity: 0.3,
-        transparent: true,
-        roughness: 0.45,
-      })
-    : null;
+  const place = (m: THREE.Material, scale = 1) => {
+    const part = new THREE.Mesh(mesh!.geometry, m);
+    part.matrixAutoUpdate = false;
+    part.matrix.makeScale(scale, scale, scale).multiply(toBottle);
+    return part;
+  };
 
-  return { cap, labelMat, liquid: liquidMaterial(drinkColour(map)) };
+  // The print sits just outside the glass so it is drawn directly, not seen
+  // through the (softer) refraction of the glass.
+  return { print: place(printMat, 1.02), cap: place(capMat), liquid: liquidMaterial(colour) };
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP = new THREE.Vector3();
 
-export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; modelPath: string }) {
-  const parts = useMemo(() => buildParts(source, drinksData.find((d) => d.model === modelPath)), [source, modelPath]);
+export function LiquidBottle({ source }: { source: THREE.Object3D }) {
+  const parts = useMemo(() => buildParts(source), [source]);
   const liquidMesh = useRef<THREE.Mesh>(null);
   const heights = useRef<Float32Array>(null);
   // Surface tilt with a little slosh: it springs back to level and lags behind
@@ -309,9 +289,9 @@ export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; mo
   return (
     <group>
       <mesh ref={liquidMesh} geometry={LIQUID_GEOMETRY} material={parts.liquid.mat} />
+      <primitive object={parts.print} />
       <primitive object={parts.cap} />
       <mesh geometry={GLASS_GEOMETRY} material={GLASS_MATERIAL} />
-      {parts.labelMat && <mesh geometry={LABEL_GEOMETRY} material={parts.labelMat} />}
     </group>
   );
 }
