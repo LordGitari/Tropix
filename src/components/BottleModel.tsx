@@ -1,6 +1,6 @@
-import { useRef, useEffect, useMemo, useState } from "react";
-import { useFrame } from "@react-three/fiber";
-import { useGLTF, ContactShadows, Float, PresentationControls } from "@react-three/drei";
+import { useRef, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useGLTF, ContactShadows, Float } from "@react-three/drei";
 import * as THREE from "three";
 
 interface BottleModelProps {
@@ -217,6 +217,76 @@ function Bubbles({ color }: { color: string }) {
   );
 }
 
+// Drag anywhere on the canvas to turn the bottle freely: left/right always spins it
+// around the screen's vertical axis and up/down flips it end over end, with no limits
+// in either direction. Rotation is applied in screen space, so it never feels reversed.
+const DRAG_SPEED = 1.6; // half-turns per canvas width/height dragged
+const AXIS_X = new THREE.Vector3(1, 0, 0);
+const AXIS_Y = new THREE.Vector3(0, 1, 0);
+const turn = new THREE.Quaternion();
+
+function rotateBy(obj: THREE.Object3D, yaw: number, pitch: number) {
+  obj.quaternion.premultiply(turn.setFromAxisAngle(AXIS_Y, yaw));
+  obj.quaternion.premultiply(turn.setFromAxisAngle(AXIS_X, pitch));
+}
+
+function FreeRotate({ children }: { children: ReactNode }) {
+  const group = useRef<THREE.Group>(null);
+  const gl = useThree((s) => s.gl);
+  const dragging = useRef(false);
+  const velocity = useRef({ yaw: 0, pitch: 0 }); // radians per second, for momentum
+
+  useEffect(() => {
+    const el = gl.domElement;
+    let last = { x: 0, y: 0, t: 0 };
+
+    const down = (e: PointerEvent) => {
+      dragging.current = true;
+      velocity.current = { yaw: 0, pitch: 0 };
+      last = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+      el.setPointerCapture(e.pointerId);
+    };
+    const move = (e: PointerEvent) => {
+      if (!dragging.current || !group.current) return;
+      const yaw = ((e.clientX - last.x) / el.clientWidth) * Math.PI * DRAG_SPEED;
+      const pitch = ((e.clientY - last.y) / el.clientHeight) * Math.PI * DRAG_SPEED;
+      rotateBy(group.current, yaw, pitch);
+      const dt = Math.max(1, e.timeStamp - last.t) / 1000;
+      velocity.current = { yaw: yaw / dt, pitch: pitch / dt };
+      last = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+    };
+    const up = (e: PointerEvent) => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      // A pause before letting go means no fling.
+      if (e.timeStamp - last.t > 80) velocity.current = { yaw: 0, pitch: 0 };
+    };
+
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+    };
+  }, [gl]);
+
+  useFrame((_state, delta) => {
+    if (dragging.current || !group.current) return;
+    const v = velocity.current;
+    if (Math.abs(v.yaw) + Math.abs(v.pitch) < 0.01) return;
+    rotateBy(group.current, v.yaw * delta, v.pitch * delta);
+    const decay = Math.exp(-delta * 3);
+    v.yaw *= decay;
+    v.pitch *= decay;
+  });
+
+  return <group ref={group}>{children}</group>;
+}
+
 export function DetailScene({ modelPath, direction, bgFrom, bgTo }: { modelPath: string; direction: number; bgFrom: string; bgTo: string }) {
   return (
     <>
@@ -225,17 +295,11 @@ export function DetailScene({ modelPath, direction, bgFrom, bgTo }: { modelPath:
       <directionalLight position={[-4, 2, -2]} intensity={1} color={bgFrom} />
       <pointLight position={[0, 4, 3]} intensity={1.6} color={bgFrom} />
       <pointLight position={[0, -2, 2]} intensity={0.6} color={bgTo} />
-      <PresentationControls
-        global
-        cursor
-        speed={1.4}
-        polar={[-Infinity, Infinity]}
-        azimuth={[-Infinity, Infinity]}
-      >
+      <FreeRotate>
         <Float speed={2} rotationIntensity={0.1} floatIntensity={0.5} floatingRange={[-0.04, 0.04]}>
           <BottleSwapper modelPath={modelPath} direction={direction} />
         </Float>
-      </PresentationControls>
+      </FreeRotate>
       <Bubbles color={bgFrom} />
       <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={3} blur={2.4} far={2.5} />
     </>

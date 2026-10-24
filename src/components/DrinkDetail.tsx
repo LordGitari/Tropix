@@ -213,6 +213,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
             {/* offsetSize: measure layout size, not the transformed size mid-animation */}
             <Canvas
               resize={{ offsetSize: true }}
+              className="cursor-grab active:cursor-grabbing touch-none"
               camera={{ position: [0, 0, 3.4], fov: 40 }}
               gl={{ antialias: true, alpha: true }}
               shadows
