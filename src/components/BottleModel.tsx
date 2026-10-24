@@ -18,7 +18,9 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
   const currentY = useRef(0);
   const targetScale = useRef(1);
   const currentScale = useRef(1);
-  const autoRotateSpeed = useRef(0.004);
+  // Gentle sway around the front instead of a full spin, so the label stays readable.
+  const swayAmount = useRef(1);
+  const [swayPhase] = useState(() => Math.random() * Math.PI * 2);
 
   useEffect(() => {
     scene.traverse((child) => {
@@ -35,7 +37,7 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
     });
   }, [hovered, scene]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!ref.current) return;
 
     targetY.current = hovered ? 0.18 : 0;
@@ -47,9 +49,9 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
     ref.current.position.y = currentY.current;
     ref.current.scale.setScalar(currentScale.current);
 
-    if (!hovered) {
-      ref.current.rotation.y += autoRotateSpeed.current;
-    }
+    // Settle to face the viewer on hover; otherwise sway about ±25°.
+    swayAmount.current += ((hovered ? 0 : 1) - swayAmount.current) * 0.06;
+    ref.current.rotation.y = Math.sin(clock.elapsedTime * 0.6 + swayPhase) * 0.45 * swayAmount.current;
   });
 
   return (
