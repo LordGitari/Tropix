@@ -10,6 +10,16 @@ import { playOpen, playSwoosh, playClink, isMuted, setMuted } from "./lib/sound"
 import { useCart } from "./hooks/useCart";
 import { drinksData, type Drink } from "./data/drinks";
 
+// Where each flavour's ambient glow sits (one per drink, spread behind the carousel).
+const AMBIENT_SPOTS = [
+  { left: "12%", top: "30%" },
+  { left: "40%", top: "75%" },
+  { left: "65%", top: "25%" },
+  { left: "90%", top: "70%" },
+];
+const GRAIN =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+
 function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredDrink, setHoveredDrink, setRippleOrigin, onClick }: {
   drink: Drink;
   index: number;
@@ -152,7 +162,7 @@ export default function App() {
 
   const activeDrink = hoveredDrink || selectedDrink;
 
-  const bg = "linear-gradient(135deg, #05050a, #080810, #060a12)";
+  const bg = "linear-gradient(135deg, #08080f, #0c0c1a, #08111d)";
 
   const bgText = activeDrink ? activeDrink.shortName : "";
 
@@ -161,6 +171,29 @@ export default function App() {
       className="relative min-h-screen w-full flex flex-col items-center font-sans select-none overflow-hidden"
       style={{ background: bg }}
     >
+      {/* Ambient backdrop: drifting flavour glows, grain and vignette. Dims while a bottle is active. */}
+      <motion.div
+        aria-hidden
+        className="fixed inset-0 pointer-events-none z-0 overflow-hidden"
+        animate={{ opacity: activeDrink ? 0.3 : 1 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      >
+        {drinksData.map((d, i) => (
+          <div
+            key={d.id}
+            className="ambient-glow"
+            style={{
+              left: AMBIENT_SPOTS[i].left,
+              top: AMBIENT_SPOTS[i].top,
+              background: `radial-gradient(circle, ${d.bgFrom}40 0%, ${d.bgTo}1f 40%, transparent 68%)`,
+              animationDuration: `${24 + i * 5}s`,
+              animationDelay: `${-i * 7}s`,
+            }}
+          />
+        ))}
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%)" }} />
+        <div className="absolute inset-0 opacity-[0.08] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
+      </motion.div>
       {/* Liquid Ripple */}
       <AnimatePresence>
         {hoveredDrink && rippleOrigin && (

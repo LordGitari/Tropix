@@ -5,3 +5,23 @@
     display: none;
   }
 }
+
+/* Ambient backdrop: big soft flavour glows that drift slowly behind the page. */
+.ambient-glow {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 9999px;
+  animation: ambient-drift 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes ambient-drift {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-42%, -56%) scale(1.15); }
+  100% { transform: translate(-57%, -45%) scale(0.92); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-glow { animation: none; transform: translate(-50%, -50%); }
+}
