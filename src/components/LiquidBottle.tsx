@@ -1,12 +1,16 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { drinksData, type Drink } from "../data/drinks";
 
 // The source models are a single solid mesh with the drink painted on, so the
 // bottle is rebuilt from parts:
 //   glass   – a clear, refractive shell traced from the model's silhouette
 //   liquid  – the drink inside, kept level with gravity as the bottle turns
 //   print   – the model's printed text only, sitting on the outside of the glass
+//   headline – the "<FLAVOUR> SMOOTHIE MOCKUP" block redrawn crisply in the same
+//              style and place, with the right flavour name (the model artwork's
+//              is tiny, blurry and sometimes wrong or missing)
 //   cap     – the model's own cap
 // All four models share the same shape; only the textures differ.
 
@@ -140,17 +144,87 @@ function analyse(map: THREE.Texture) {
 
 // Only draw the part of the model mesh between two heights (in bottle space).
 // Done in the shader so it holds however the bottle is moved or rotated.
-function clipHeight(mat: THREE.Material, toBottle: THREE.Matrix4, min: number, max: number) {
+// Optionally also drops dark print inside a rectangle on the front.
+type Rect = { x: [number, number]; y: [number, number] };
+
+function clipHeight(mat: THREE.Material, toBottle: THREE.Matrix4, min: number, max: number, hideDark?: Rect) {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uToBottle = { value: toBottle };
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nuniform mat4 uToBottle;\nvarying float vBottleY;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvBottleY = (uToBottle * vec4(position, 1.0)).y;");
+      .replace("#include <common>", "#include <common>\nuniform mat4 uToBottle;\nvarying vec3 vBottlePos;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvBottlePos = (uToBottle * vec4(position, 1.0)).xyz;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying float vBottleY;")
-      .replace("void main() {", `void main() {\n  if (vBottleY < ${min.toFixed(3)} || vBottleY > ${max.toFixed(3)}) discard;`);
+      .replace("#include <common>", "#include <common>\nvarying vec3 vBottlePos;")
+      .replace("void main() {", `void main() {\n  if (vBottlePos.y < ${min.toFixed(3)} || vBottlePos.y > ${max.toFixed(3)}) discard;`);
+    if (hideDark) {
+      const [x0, x1] = hideDark.x.map((v) => v.toFixed(3));
+      const [y0, y1] = hideDark.y.map((v) => v.toFixed(3));
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>\n  if (vBottlePos.z > 0.0 && vBottlePos.x > ${x0} && vBottlePos.x < ${x1} && vBottlePos.y > ${y0} && vBottlePos.y < ${y1} && diffuseColor.r < 0.5) discard;`,
+      );
+    }
   };
-  mat.customProgramCacheKey = () => `clip:${min}:${max}`;
+  mat.customProgramCacheKey = () => `clip:${min}:${max}:${hideDark ? "hide" : ""}`;
+}
+
+// ── Headline ──
+// Measured from the models (bottle space, front view): the block starts at
+// x = -0.222; baselines at y = -0.1, -0.165, -0.235; capitals 0.052 tall.
+const HEADLINE_AREA: Rect = { x: [-0.25, 0.2], y: [-0.26, -0.02] };
+const HEADLINE_RADIUS = 0.33 * 1.02 * 1.003; // just over the print
+const HEADLINE_THETA: [number, number] = [-0.8, 0.85];
+const HEADLINE_TOP = 0;
+const HEADLINE_BOTTOM = -0.27;
+const HEADLINE_LEFT = -0.222;
+const PX_PER_UNIT = 3600;
+const CAP_HEIGHT = 0.052;
+const FLAVOUR_CAP_HEIGHT = 0.07; // flavour line a little bigger than the rest
+
+const HEADLINE_GEOMETRY = new THREE.CylinderGeometry(
+  HEADLINE_RADIUS, HEADLINE_RADIUS, HEADLINE_TOP - HEADLINE_BOTTOM, 96, 1, true,
+  HEADLINE_THETA[0], HEADLINE_THETA[1] - HEADLINE_THETA[0],
+).translate(0, (HEADLINE_TOP + HEADLINE_BOTTOM) / 2, 0);
+
+const headlineTextures = new Map<number, THREE.Texture>();
+
+function headlineTexture(drink: Drink) {
+  const cached = headlineTextures.get(drink.id);
+  if (cached) return cached;
+
+  const arc = HEADLINE_RADIUS * (HEADLINE_THETA[1] - HEADLINE_THETA[0]);
+  const W = Math.round(arc * PX_PER_UNIT);
+  const H = Math.round((HEADLINE_TOP - HEADLINE_BOTTOM) * PX_PER_UNIT);
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#151210";
+  ctx.textBaseline = "alphabetic";
+
+  // Arc-length position of the block's left edge on the cylinder.
+  const left = (HEADLINE_RADIUS * (Math.asin(HEADLINE_LEFT / HEADLINE_RADIUS) - HEADLINE_THETA[0])) * PX_PER_UNIT;
+  const py = (y: number) => (HEADLINE_TOP - y) * PX_PER_UNIT;
+  const line = (text: string, capHeight: number, baseline: number, maxWidth: number) => {
+    const size = (capHeight / 0.716) * PX_PER_UNIT; // Arial capitals are ~0.716em
+    ctx.font = `bold ${size}px Arial, "Helvetica Neue", Helvetica, sans-serif`;
+    ctx.letterSpacing = `${-size * 0.01}px`;
+    const width = ctx.measureText(text).width;
+    ctx.save();
+    ctx.translate(left, py(baseline));
+    if (width > maxWidth) ctx.scale(maxWidth / width, 1);
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  };
+  line(drink.shortName, FLAVOUR_CAP_HEIGHT, -0.1, 0.44 * PX_PER_UNIT);
+  line("SMOOTHIE", CAP_HEIGHT, -0.165, 0.4 * PX_PER_UNIT);
+  line("MOCKUP", CAP_HEIGHT, -0.235, 0.4 * PX_PER_UNIT);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 16;
+  headlineTextures.set(drink.id, texture);
+  return texture;
 }
 
 // Liquid shader: discard everything above the surface plane, and paint the
@@ -190,7 +264,7 @@ function liquidMaterial(colour: THREE.Color) {
   return { mat, uniforms };
 }
 
-function buildParts(source: THREE.Object3D) {
+function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
   let mesh: THREE.Mesh | undefined;
   source.traverse((c) => {
     if (!mesh && (c as THREE.Mesh).isMesh) mesh = c as THREE.Mesh;
@@ -217,7 +291,7 @@ function buildParts(source: THREE.Object3D) {
     roughness: 0.45,
     side: THREE.DoubleSide,
   });
-  clipHeight(printMat, toBottle, PRINT_RANGE[0], PRINT_RANGE[1]);
+  clipHeight(printMat, toBottle, PRINT_RANGE[0], PRINT_RANGE[1], drink ? HEADLINE_AREA : undefined);
 
   const capMat = new THREE.MeshPhysicalMaterial({
     map,
@@ -238,14 +312,18 @@ function buildParts(source: THREE.Object3D) {
 
   // The print sits just outside the glass so it is drawn directly, not seen
   // through the (softer) refraction of the glass.
-  return { print: place(printMat, 1.02), cap: place(capMat), liquid: liquidMaterial(colour) };
+  const headlineMat = drink
+    ? new THREE.MeshStandardMaterial({ map: headlineTexture(drink), transparent: true, roughness: 0.45 })
+    : null;
+
+  return { print: place(printMat, 1.02), cap: place(capMat), headlineMat, liquid: liquidMaterial(colour) };
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP = new THREE.Vector3();
 
-export function LiquidBottle({ source }: { source: THREE.Object3D }) {
-  const parts = useMemo(() => buildParts(source), [source]);
+export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; modelPath: string }) {
+  const parts = useMemo(() => buildParts(source, drinksData.find((d) => d.model === modelPath)), [source, modelPath]);
   const liquidMesh = useRef<THREE.Mesh>(null);
   const heights = useRef<Float32Array>(null);
   // Surface tilt with a little slosh: it springs back to level and lags behind
@@ -290,6 +368,7 @@ export function LiquidBottle({ source }: { source: THREE.Object3D }) {
     <group>
       <mesh ref={liquidMesh} geometry={LIQUID_GEOMETRY} material={parts.liquid.mat} />
       <primitive object={parts.print} />
+      {parts.headlineMat && <mesh geometry={HEADLINE_GEOMETRY} material={parts.headlineMat} />}
       <primitive object={parts.cap} />
       <mesh geometry={GLASS_GEOMETRY} material={GLASS_MATERIAL} />
     </group>

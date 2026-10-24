@@ -59,7 +59,7 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
-      <LiquidBottle source={scene} />
+      <LiquidBottle source={scene} modelPath={modelPath} />
     </group>
   );
 }
@@ -105,7 +105,7 @@ export function BottleScene({
 
 function ClonedModel({ modelPath }: { modelPath: string }) {
   const { scene } = useGLTF(modelPath);
-  return <LiquidBottle source={scene} />;
+  return <LiquidBottle source={scene} modelPath={modelPath} />;
 }
 
 const ease = {
