@@ -170,7 +170,7 @@ function clipHeight(mat: THREE.Material, toBottle: THREE.Matrix4, min: number, m
 
 // ── Headline ──
 // Measured from the models (bottle space, front view): the block starts at
-// x = -0.222; baselines at y = -0.1, -0.165, -0.235; capitals 0.052 tall.
+// x = -0.222, between the logo (above y = 0) and the small print (below -0.27).
 const HEADLINE_AREA: Rect = { x: [-0.25, 0.2], y: [-0.26, -0.02] };
 const HEADLINE_RADIUS = 0.33 * 1.02 * 1.003; // just over the print
 const HEADLINE_THETA: [number, number] = [-0.8, 0.85];
@@ -178,8 +178,10 @@ const HEADLINE_TOP = 0;
 const HEADLINE_BOTTOM = -0.27;
 const HEADLINE_LEFT = -0.222;
 const PX_PER_UNIT = 3600;
-const CAP_HEIGHT = 0.052;
-const FLAVOUR_CAP_HEIGHT = 0.07; // flavour line a little bigger than the rest
+const CAP_HEIGHT = 0.045;
+const FLAVOUR_CAP_HEIGHT = 0.11; // the flavour is the line that matters most
+const FLAVOUR_FONT = 'Impact, Haettenschweiler, "Arial Narrow", "Arial Black", sans-serif';
+const SUPPORT_FONT = '"Arial Black", "Segoe UI", Arial, sans-serif';
 
 const HEADLINE_GEOMETRY = new THREE.CylinderGeometry(
   HEADLINE_RADIUS, HEADLINE_RADIUS, HEADLINE_TOP - HEADLINE_BOTTOM, 96, 1, true,
@@ -205,10 +207,13 @@ function headlineTexture(drink: Drink) {
   // Arc-length position of the block's left edge on the cylinder.
   const left = (HEADLINE_RADIUS * (Math.asin(HEADLINE_LEFT / HEADLINE_RADIUS) - HEADLINE_THETA[0])) * PX_PER_UNIT;
   const py = (y: number) => (HEADLINE_TOP - y) * PX_PER_UNIT;
-  const line = (text: string, capHeight: number, baseline: number, maxWidth: number) => {
-    const size = (capHeight / 0.716) * PX_PER_UNIT; // Arial capitals are ~0.716em
-    ctx.font = `bold ${size}px Arial, "Helvetica Neue", Helvetica, sans-serif`;
-    ctx.letterSpacing = `${-size * 0.01}px`;
+  // Sized by capital height (measured, so any fallback font lands the same size).
+  const line = (text: string, family: string, capHeight: number, baseline: number, tracking: number, maxWidth: number) => {
+    ctx.font = `900 100px ${family}`;
+    const capRatio = ctx.measureText("H").actualBoundingBoxAscent / 100;
+    const size = (capHeight / capRatio) * PX_PER_UNIT;
+    ctx.font = `900 ${size}px ${family}`;
+    ctx.letterSpacing = `${size * tracking}px`;
     const width = ctx.measureText(text).width;
     ctx.save();
     ctx.translate(left, py(baseline));
@@ -216,9 +221,12 @@ function headlineTexture(drink: Drink) {
     ctx.fillText(text, 0, 0);
     ctx.restore();
   };
-  line(drink.shortName, FLAVOUR_CAP_HEIGHT, -0.1, 0.44 * PX_PER_UNIT);
-  line("SMOOTHIE", CAP_HEIGHT, -0.165, 0.4 * PX_PER_UNIT);
-  line("MOCKUP", CAP_HEIGHT, -0.235, 0.4 * PX_PER_UNIT);
+  // Flavour: tall, condensed and heavy so it reads even on the small carousel
+  // bottles. The supporting lines are smaller with open letter spacing, which
+  // keeps small capitals from clumping together.
+  line(drink.shortName, FLAVOUR_FONT, FLAVOUR_CAP_HEIGHT, -0.13, 0.03, 0.46 * PX_PER_UNIT);
+  line("SMOOTHIE", SUPPORT_FONT, CAP_HEIGHT, -0.19, 0.12, 0.42 * PX_PER_UNIT);
+  line("MOCKUP", SUPPORT_FONT, CAP_HEIGHT, -0.245, 0.12, 0.42 * PX_PER_UNIT);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
