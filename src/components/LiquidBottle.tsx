@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { drinksData, type Drink } from "../data/drinks";
 import { useQuality } from "../lib/quality";
@@ -101,59 +102,16 @@ const GLASS_MATERIAL = new THREE.MeshPhysicalMaterial({
   envMapIntensity: 1.3,
 });
 
-// Pulls the printed text out of a model texture. The drink colour is found
-// first (the average saturated pixel); then anything clearly lighter and greyer
-// than it is white print, and anything clearly darker is dark print. The result
-// is a clean white / near-black text layer with soft edges. Cached per texture.
-const analysed = new Map<THREE.Texture, { print: THREE.Texture; colour: THREE.Color }>();
-
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-
-function analyse(map: THREE.Texture) {
-  const cached = analysed.get(map);
-  if (cached) return cached;
-
-  const image = map.image as { width: number; height: number } & CanvasImageSource;
-  const canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(image, 0, 0);
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const d = img.data;
-
-  let r = 0, g = 0, b = 0, n = 0;
-  for (let i = 0; i < d.length; i += 4) {
-    const max = Math.max(d[i], d[i + 1], d[i + 2]);
-    const min = Math.min(d[i], d[i + 1], d[i + 2]);
-    if (max > 0 && (max - min) / max > 0.4) {
-      r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
-    }
-  }
-  const drinkLum = (r + g + b) / 3 / n;
-
-  for (let i = 0; i < d.length; i += 4) {
-    const max = Math.max(d[i], d[i + 1], d[i + 2]);
-    const min = Math.min(d[i], d[i + 1], d[i + 2]);
-    const sat = max === 0 ? 0 : (max - min) / max;
-    const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
-    const light = clamp01((lum - drinkLum - 45) / 20) * clamp01((0.24 - sat) / 0.08);
-    const dark = clamp01((drinkLum - 40 - lum) / 20);
-    const isLight = light >= dark;
-    d[i] = d[i + 1] = d[i + 2] = isLight ? 250 : 18;
-    d[i + 3] = Math.round(Math.max(light, dark) * 255);
-  }
-  ctx.putImageData(img, 0, 0);
-
-  const print = new THREE.CanvasTexture(canvas);
-  print.flipY = map.flipY;
-  print.channel = map.channel;
-  print.colorSpace = THREE.SRGBColorSpace;
-  print.anisotropy = 8;
-  const colour = new THREE.Color().setRGB(r / n / 255, g / n / 255, b / n / 255, THREE.SRGBColorSpace);
-  const result = { print, colour };
-  analysed.set(map, result);
-  return result;
+// The printed text layer (white / near-black text with soft edges) and the drink
+// colour are prepared ahead of time by scripts/make-print-masks.py, from the
+// models' full-resolution textures. Doing it here meant scanning millions of
+// pixels on the main thread while the page loaded.
+function preparePrint(texture: THREE.Texture, map: THREE.Texture) {
+  texture.flipY = map.flipY; // match the model's UV layout
+  texture.channel = map.channel;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
 }
 
 // Only draw the part of the model mesh between two heights (in bottle space).
@@ -286,7 +244,7 @@ function liquidMaterial(colour: THREE.Color) {
   return { mat, uniforms };
 }
 
-function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
+function buildParts(source: THREE.Object3D, drink: Drink | undefined, printTexture: THREE.Texture) {
   let mesh: THREE.Mesh | undefined;
   source.traverse((c) => {
     if (!mesh && (c as THREE.Mesh).isMesh) mesh = c as THREE.Mesh;
@@ -294,8 +252,8 @@ function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
   if (!mesh) return null;
   const original = mesh.material as THREE.MeshStandardMaterial;
   const map = original.map!;
-  map.anisotropy = 8;
-  const { print, colour } = analyse(map);
+  const print = preparePrint(printTexture, map);
+  const colour = new THREE.Color(drink?.liquid ?? "#ffffff");
 
   // The mesh's transform relative to the model root (it carries quantization scale).
   source.updateMatrixWorld(true);
@@ -342,12 +300,15 @@ function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
   return { print: place(printMat, 1.02), cap: place(capMat), headlineMat, glass: GLASS_MATERIAL.clone(), glassLite: GLASS_LITE_MATERIAL.clone(), liquid: liquidMaterial(colour) };
 }
 
+const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP = new THREE.Vector3();
 
 export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; modelPath: string }) {
   const { refractiveGlass } = useQuality();
-  const parts = useMemo(() => buildParts(source, drinksData.find((d) => d.model === modelPath)), [source, modelPath]);
+  const drink = drinksData.find((d) => d.model === modelPath);
+  const printTexture = useTexture(drink?.print ?? TRANSPARENT_PIXEL);
+  const parts = useMemo(() => buildParts(source, drink, printTexture), [source, drink, printTexture]);
   const liquidMesh = useRef<THREE.Mesh>(null);
   const heights = useRef<Float32Array>(null);
   // Surface tilt with a little slosh: it springs back to level and lags behind

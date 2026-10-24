@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useProgress } from "@react-three/drei";
 import { drinksData } from "../data/drinks";
+import { useSceneStatus } from "../lib/sceneStatus";
 
 // Lite mode only needs the bottle photos; track those instead of 3D models.
 function useImageProgress(enabled: boolean) {
@@ -18,15 +18,25 @@ function useImageProgress(enabled: boolean) {
   return (loaded / drinksData.length) * 100;
 }
 
+// Never keep visitors on the loader longer than this, whatever happens.
+const GIVE_UP_MS = 20000;
+
 // Full-screen loader: a bottle silhouette that fills with liquid as the 3D models
-// (or, in lite mode, the bottle photos) download.
+// (or, in lite mode, the bottle photos) download. In 3D it also waits until the
+// bottles' shaders are compiled, so nothing stutters once the page is revealed.
 export function Loader({ onDone, lite }: { onDone: () => void; lite: boolean }) {
-  const { active, progress, errors } = useProgress();
+  const { active, progress, failed, preparing } = useSceneStatus();
   const imageProgress = useImageProgress(lite);
   const [done, setDone] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setGaveUp(true), GIVE_UP_MS);
+    return () => clearTimeout(t);
+  }, []);
   const pct = Math.round(lite ? imageProgress : progress);
-  // A failed download shouldn't leave visitors stuck on the loader.
-  const finished = lite ? imageProgress >= 100 : (!active && progress >= 100) || errors.length > 0;
+  // A failed download shouldn't leave visitors stuck on the loader either.
+  const finished =
+    gaveUp || (lite ? imageProgress >= 100 : failed || (!active && progress >= 100 && preparing === 0));
 
   useEffect(() => {
     if (done || !finished) return;

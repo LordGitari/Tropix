@@ -1,68 +1,16 @@
-import { Component, Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
-import { PerformanceMonitor } from "@react-three/drei";
+import { PerformanceMonitor, useProgress } from "@react-three/drei";
 import * as THREE from "three";
 import { goLite, stepDown, stepUp, useQuality } from "../lib/quality";
+import { reportDownloads, viewPreparing, viewReady } from "../lib/sceneStatus";
+import { useViewEntries, type ViewEntry } from "../lib/sceneViews";
 
-// One WebGL canvas for the whole site. Every 3D area on the page is a <SceneView>:
-// an ordinary, empty div in the layout. The shared canvas sits fixed over the
-// viewport and draws each view's scene into the rectangle of its div. Models,
+// One WebGL canvas for the whole site. It sits fixed over the viewport and draws
+// each <SceneView>'s scene into the rectangle of that view's div. Models,
 // textures and shaders are therefore loaded and compiled once, and opening a
-// bottle no longer has to spin up a brand-new 3D engine.
-
-type ViewEntry = {
-  track: RefObject<HTMLDivElement | null>;
-  camera: { position: [number, number, number]; fov: number };
-  children: ReactNode;
-};
-
-// Tiny store that carries each view's 3D content from the page into the canvas.
-const views = new Map<string, ViewEntry>();
-let snapshot: [string, ViewEntry][] = [];
-const listeners = new Set<() => void>();
-let pending = false;
-// Batched: several views updating in the same tick only re-sync the canvas once.
-const emit = () => {
-  if (pending) return;
-  pending = true;
-  queueMicrotask(() => {
-    pending = false;
-    snapshot = [...views];
-    listeners.forEach((l) => l());
-  });
-};
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
-};
-const getSnapshot = () => snapshot;
-
-export function SceneView({ className, style, camera, trackRef, children }: {
-  className?: string;
-  style?: React.CSSProperties;
-  camera: ViewEntry["camera"];
-  /** Optional ref to the view's div, e.g. to listen for drags on it. */
-  trackRef?: RefObject<HTMLDivElement | null>;
-  children: ReactNode;
-}) {
-  const ownRef = useRef<HTMLDivElement>(null);
-  const track = trackRef ?? ownRef;
-  const id = useId();
-
-  useLayoutEffect(() => {
-    views.set(id, { track, camera, children });
-    emit();
-  });
-  useLayoutEffect(
-    () => () => {
-      views.delete(id);
-      emit();
-    },
-    [id],
-  );
-
-  return <div ref={track} className={className} style={style} />;
-}
+// bottle no longer has to spin up a brand-new 3D engine. This module (and all
+// the 3D code) is loaded on demand, so lite mode never downloads it.
 
 const OFF_SCREEN = new THREE.Vector2(10, 10);
 
@@ -81,9 +29,42 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
   }
 }
 
+// Once a view's content has loaded, compile its shaders in the background
+// (without freezing the page) before it's drawn for the first time.
+function WarmUp({ onReady }: { onReady: () => void }) {
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    let cancelled = false;
+    gl.compileAsync(scene, camera)
+      .catch(() => {})
+      .then(() => !cancelled && onReady());
+    return () => {
+      cancelled = true;
+    };
+  }, [gl, scene, camera, onReady]);
+  return null;
+}
+
 function ViewRenderer({ track, camera, children }: ViewEntry) {
   const cam = useMemo(() => new THREE.PerspectiveCamera(camera.fov, 1, 0.1, 100), [camera.fov]);
   const set = useThree((s) => s.set);
+  const compiled = useRef(false);
+
+  // Tell the loading screen this view is still getting ready.
+  useLayoutEffect(() => {
+    viewPreparing();
+    return () => {
+      if (!compiled.current) viewReady();
+    };
+  }, []);
+  const onReady = useMemo(
+    () => () => {
+      if (compiled.current) return;
+      compiled.current = true;
+      viewReady();
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
     cam.position.set(...camera.position);
@@ -93,7 +74,7 @@ function ViewRenderer({ track, camera, children }: ViewEntry) {
   // Draw this view's scene into its div's rectangle (skipped while off screen).
   useFrame((state) => {
     const el = track.current;
-    if (!el) return;
+    if (!el || !compiled.current) return;
     const r = el.getBoundingClientRect();
     const W = state.gl.domElement.clientWidth;
     const H = state.gl.domElement.clientHeight;
@@ -114,7 +95,10 @@ function ViewRenderer({ track, camera, children }: ViewEntry) {
 
   return (
     <SceneErrorBoundary>
-      <Suspense fallback={null}>{children}</Suspense>
+      <Suspense fallback={null}>
+        {children}
+        <WarmUp onReady={onReady} />
+      </Suspense>
     </SceneErrorBoundary>
   );
 }
@@ -145,7 +129,7 @@ function ViewPortal(entry: ViewEntry) {
 }
 
 function Views() {
-  const entries = useSyncExternalStore(subscribe, getSnapshot);
+  const entries = useViewEntries();
   return entries.map(([id, entry]) => <ViewPortal key={id} {...entry} />);
 }
 
@@ -170,6 +154,13 @@ function FrameRateWatcher() {
   );
 }
 
+// Passes model/texture download progress to the loading screen.
+function DownloadReporter() {
+  const { progress, active, errors } = useProgress();
+  useEffect(() => reportDownloads(progress, active, errors.length > 0), [progress, active, errors.length]);
+  return null;
+}
+
 export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLElement | null> }) {
   const quality = useQuality();
   return (
@@ -183,6 +174,7 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
       // fall back to lite mode rather than show empty bottle slots.
       onCreated={({ gl }) => gl.domElement.addEventListener("webglcontextlost", () => goLite("crash"))}
     >
+      <DownloadReporter />
       <FrameRateWatcher />
       <Views />
     </Canvas>

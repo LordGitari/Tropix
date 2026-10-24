@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy } from "react";
 import { motion, AnimatePresence, animate, type MotionValue, type Variants } from "framer-motion";
-import { DetailScene } from "./BottleModel";
-import { SceneView } from "./SharedCanvas";
+import { SceneView } from "./SceneView";
+
+const DetailScene = lazy(() => import("./BottleModel").then((m) => ({ default: m.DetailScene })));
 import { LiteDetailBottle } from "./LiteBottle";
 import { ingredientBenefits, PRICE, type Drink } from "../data/drinks";
 

@@ -12,6 +12,10 @@ export interface Drink {
   bgTo: string;
   image: string;
   model: string;
+  /** Printed text layer for the 3D bottle (made by scripts/make-print-masks.py). */
+  print: string;
+  /** Drink colour inside the 3D bottle (average colour of the model's texture). */
+  liquid: string;
 }
 
 export const drinksData: Drink[] = [
@@ -29,6 +33,8 @@ export const drinksData: Drink[] = [
     bgTo: "#ea580c",
     image: "/bottle_1-removebg-preview.png",
     model: "/orange.glb",
+    print: "/print/orange.webp",
+    liquid: "#d48b44",
   },
   {
     id: 2,
@@ -44,6 +50,8 @@ export const drinksData: Drink[] = [
     bgTo: "#be123c",
     image: "/bottle_2-removebg-preview.png",
     model: "/berry.glb",
+    print: "/print/berry.webp",
+    liquid: "#e48297",
   },
   {
     id: 3,
@@ -59,6 +67,8 @@ export const drinksData: Drink[] = [
     bgTo: "#e11d48",
     image: "/bottle_3-removebg-preview.png",
     model: "/strawberry.glb",
+    print: "/print/strawberry.webp",
+    liquid: "#d84d48",
   },
   {
     id: 4,
@@ -74,6 +84,8 @@ export const drinksData: Drink[] = [
     bgTo: "#047857",
     image: "/bottle_4-removebg-preview.png",
     model: "/matcha.glb",
+    print: "/print/matcha.webp",
+    liquid: "#95a74a",
   },
 ];
 

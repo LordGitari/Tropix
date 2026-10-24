@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence, MotionConfig, useMotionValue } from "framer-motion";
-import { BottleScene } from "./components/BottleModel";
-import { SceneView, SharedCanvas } from "./components/SharedCanvas";
+import { SceneView } from "./components/SceneView";
+
+// All 3D code is loaded on demand, so lite mode never downloads it.
+const SharedCanvas = lazy(() => import("./components/SharedCanvas").then((m) => ({ default: m.SharedCanvas })));
+const BottleScene = lazy(() => import("./components/BottleModel").then((m) => ({ default: m.BottleScene })));
 import { LiteCarouselBottle, LiteNotice } from "./components/LiteBottle";
 import { useLiteMode } from "./lib/quality";
 import { DrinkDetail } from "./components/DrinkDetail";
@@ -462,7 +465,13 @@ export default function App() {
       <CartDrawer open={cartOpen} onClose={closeCart} cart={cart} />
 
       <ContactPanel open={contactOpen} onClose={closeContact} />
-      {lite ? <LiteNotice reason={liteReason} /> : <SharedCanvas eventSource={rootRef} />}
+      {lite ? (
+        <LiteNotice reason={liteReason} />
+      ) : (
+        <Suspense fallback={null}>
+          <SharedCanvas eventSource={rootRef} />
+        </Suspense>
+      )}
     </div>
     </MotionConfig>
   );
