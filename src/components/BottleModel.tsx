@@ -1,6 +1,7 @@
-import { useRef, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useRef, useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
+import { useFrame } from "@react-three/fiber";
 import { useGLTF, ContactShadows, Float, Environment, Lightformer } from "@react-three/drei";
+import type { MotionValue } from "framer-motion";
 import * as THREE from "three";
 import { LiquidBottle } from "./LiquidBottle";
 
@@ -14,6 +15,38 @@ function StudioEnvironment() {
       <Lightformer form="rect" intensity={0.8} position={[0, 0, -4]} scale={[6, 4, 1]} />
     </Environment>
   );
+}
+
+// The 3D is drawn on the shared canvas, outside the page elements that fade in
+// and out, so scenes follow that fade themselves: every material's opacity is
+// scaled by the given value (its own opacity is remembered and restored).
+type FadeData = { base: number; transparent: boolean; applied: number };
+
+function useFade(ref: RefObject<THREE.Object3D | null>, fade?: MotionValue<number>) {
+  const last = useRef(1);
+  useFrame(() => {
+    const root = ref.current;
+    if (!fade || !root) return;
+    const o = fade.get();
+    if (o >= 0.999 && last.current >= 0.999) return;
+    last.current = o;
+    root.visible = o > 0.01;
+    root.traverse((obj) => {
+      const material = (obj as THREE.Mesh).material;
+      if (!material) return;
+      for (const m of Array.isArray(material) ? material : [material]) {
+        let d = m.userData.fade as FadeData | undefined;
+        // (Re)capture the base if this is new or something else changed the opacity.
+        if (!d || Math.abs(m.opacity - d.applied) > 1e-4) {
+          d = { base: m.opacity, transparent: m.transparent, applied: m.opacity };
+          m.userData.fade = d;
+        }
+        m.opacity = d.base * o;
+        m.transparent = d.transparent || o < 0.999;
+        d.applied = m.opacity;
+      }
+    });
+  });
 }
 
 interface BottleModelProps {
@@ -68,6 +101,7 @@ export function BottleScene({
   modelPath,
   hovered,
   bgFrom,
+  fade,
   onClick,
   onPointerEnter,
   onPointerLeave,
@@ -75,21 +109,24 @@ export function BottleScene({
   modelPath: string;
   hovered: boolean;
   bgFrom: string;
+  fade?: MotionValue<number>;
   onClick: () => void;
   onPointerEnter: () => void;
   onPointerLeave: () => void;
 }) {
+  const root = useRef<THREE.Group>(null);
+  useFade(root, fade);
   // Models span y = -0.95..0.95. Shifting the scene down leaves headroom for
   // the hover lift + scale, and puts the contact shadow just under the base.
   return (
     <>
       <ambientLight intensity={hovered ? 1.2 : 0.6} />
-      <directionalLight position={[4, 8, 4]} intensity={hovered ? 3 : 1.5} castShadow />
+      <directionalLight position={[4, 8, 4]} intensity={hovered ? 3 : 1.5} />
       <directionalLight position={[-4, 2, -2]} intensity={hovered ? 1.2 : 0.4} color={bgFrom} />
       <pointLight position={[0, 4, 3]} intensity={hovered ? 2 : 0.8} color={bgFrom} />
       <pointLight position={[0, -2, 2]} intensity={hovered ? 0.8 : 0.2} color="#ffffff" />
       <StudioEnvironment />
-      <group position={[0, -0.12, 0]}>
+      <group ref={root} position={[0, -0.12, 0]}>
         <ContactShadows position={[0, -0.97, 0]} opacity={hovered ? 0.55 : 0.3} scale={2} blur={2} far={2} />
         <BottleModel
           modelPath={modelPath}
@@ -215,7 +252,7 @@ function Bubbles({ color }: { color: string }) {
   );
 }
 
-// Drag anywhere on the canvas to turn the bottle freely: left/right always spins it
+// Drag anywhere on the bottle's area to turn the bottle freely: left/right always spins it
 // around the screen's vertical axis and up/down flips it end over end, with no limits
 // in either direction. Rotation is applied in screen space, so it never feels reversed.
 const DRAG_SPEED = 1.6; // half-turns per canvas width/height dragged
@@ -228,14 +265,14 @@ function rotateBy(obj: THREE.Object3D, yaw: number, pitch: number) {
   obj.quaternion.premultiply(turn.setFromAxisAngle(AXIS_X, pitch));
 }
 
-function FreeRotate({ children }: { children: ReactNode }) {
+function FreeRotate({ track, children }: { track: RefObject<HTMLDivElement | null>; children: ReactNode }) {
   const group = useRef<THREE.Group>(null);
-  const gl = useThree((s) => s.gl);
   const dragging = useRef(false);
   const velocity = useRef({ yaw: 0, pitch: 0 }); // radians per second, for momentum
 
   useEffect(() => {
-    const el = gl.domElement;
+    const el = track.current;
+    if (!el) return;
     let last = { x: 0, y: 0, t: 0 };
 
     const down = (e: PointerEvent) => {
@@ -270,7 +307,7 @@ function FreeRotate({ children }: { children: ReactNode }) {
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", up);
     };
-  }, [gl]);
+  }, [track]);
 
   useFrame((_state, delta) => {
     if (dragging.current || !group.current) return;
@@ -285,22 +322,33 @@ function FreeRotate({ children }: { children: ReactNode }) {
   return <group ref={group}>{children}</group>;
 }
 
-export function DetailScene({ modelPath, direction, bgFrom, bgTo }: { modelPath: string; direction: number; bgFrom: string; bgTo: string }) {
+export function DetailScene({ modelPath, direction, bgFrom, bgTo, track, fade }: {
+  modelPath: string;
+  direction: number;
+  bgFrom: string;
+  bgTo: string;
+  track: RefObject<HTMLDivElement | null>;
+  fade?: MotionValue<number>;
+}) {
+  const root = useRef<THREE.Group>(null);
+  useFade(root, fade);
   return (
     <>
       <ambientLight intensity={0.9} />
-      <directionalLight position={[4, 8, 4]} intensity={2.4} castShadow />
+      <directionalLight position={[4, 8, 4]} intensity={2.4} />
       <directionalLight position={[-4, 2, -2]} intensity={1} color={bgFrom} />
       <pointLight position={[0, 4, 3]} intensity={1.6} color={bgFrom} />
       <pointLight position={[0, -2, 2]} intensity={0.6} color={bgTo} />
       <StudioEnvironment />
-      <FreeRotate>
-        <Float speed={2} rotationIntensity={0.1} floatIntensity={0.5} floatingRange={[-0.04, 0.04]}>
-          <BottleSwapper modelPath={modelPath} direction={direction} />
-        </Float>
-      </FreeRotate>
-      <Bubbles color={bgFrom} />
-      <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={3} blur={2.4} far={2.5} />
+      <group ref={root}>
+        <FreeRotate track={track}>
+          <Float speed={2} rotationIntensity={0.1} floatIntensity={0.5} floatingRange={[-0.04, 0.04]}>
+            <BottleSwapper modelPath={modelPath} direction={direction} />
+          </Float>
+        </FreeRotate>
+        <Bubbles color={bgFrom} />
+        <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={3} blur={2.4} far={2.5} />
+      </group>
     </>
   );
 }

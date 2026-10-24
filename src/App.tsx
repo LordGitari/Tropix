@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Canvas } from "@react-three/fiber";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence, useMotionValue } from "framer-motion";
 import { BottleScene } from "./components/BottleModel";
+import { SceneView, SharedCanvas } from "./components/SharedCanvas";
 import { DrinkDetail } from "./components/DrinkDetail";
 import { Loader } from "./components/Loader";
 import { ContactPanel } from "./components/ContactPanel";
@@ -20,6 +20,8 @@ const AMBIENT_SPOTS = [
 const GRAIN =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
+const CAROUSEL_CAMERA = { position: [0, 0, 3.6] as [number, number, number], fov: 38 };
+
 function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredDrink, setHoveredDrink, setRippleOrigin, onClick }: {
   drink: Drink;
   index: number;
@@ -33,6 +35,8 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const isHovered = hoveredDrink?.id === drink.id;
+  // Driven by the animations below; the 3D bottle reads it to fade along.
+  const opacity = useMotionValue(0);
 
   const handlePointerEnter = () => {
     const el = ref.current;
@@ -73,25 +77,19 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
       animate={animate}
       transition={transition}
       className="relative shrink-0 snap-center"
-      style={{ width: "180px", height: "380px" }}
+      style={{ width: "180px", height: "380px", opacity }}
     >
-      <Canvas
-        camera={{ position: [0, 0, 3.6], fov: 38 }}
-        style={{ width: "100%", height: "100%" }}
-        gl={{ antialias: true, alpha: true }}
-        shadows
-      >
-        <Suspense fallback={null}>
-          <BottleScene
-            modelPath={drink.model}
-            hovered={isHovered}
-            bgFrom={drink.bgFrom}
-            onClick={handleClick}
-            onPointerEnter={handlePointerEnter}
-            onPointerLeave={handlePointerLeave}
-          />
-        </Suspense>
-      </Canvas>
+      <SceneView className="w-full h-full" camera={CAROUSEL_CAMERA}>
+        <BottleScene
+          modelPath={drink.model}
+          hovered={isHovered}
+          bgFrom={drink.bgFrom}
+          fade={opacity}
+          onClick={handleClick}
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
+        />
+      </SceneView>
     </motion.div>
   );
 }
@@ -106,6 +104,8 @@ export default function App() {
   const launchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [introComplete, setIntroComplete] = useState<boolean>(false);
   const [direction, setDirection] = useState(1);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const detailOpacity = useMotionValue(0);
 
   const cart = useCart();
   const [cartOpen, setCartOpen] = useState(false);
@@ -168,6 +168,7 @@ export default function App() {
 
   return (
     <div
+      ref={rootRef}
       className="relative min-h-screen w-full flex flex-col items-center font-sans select-none overflow-hidden"
       style={{ background: bg }}
     >
@@ -379,6 +380,7 @@ export default function App() {
               exit={{ opacity: 0, y: 50, transition: { duration: 0.3, ease: "easeIn" } }}
               transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
               className="w-full mt-8"
+              style={{ opacity: detailOpacity }}
             >
               <DrinkDetail
                 drink={selectedDrink!}
@@ -390,6 +392,7 @@ export default function App() {
                 onNext={showNext}
                 onBack={closeDetail}
                 onAddToCart={() => { cart.add(selectedDrink!.id); playClink(); }}
+                fade={detailOpacity}
               />
             </motion.div>
           )}
@@ -445,6 +448,7 @@ export default function App() {
       <CartDrawer open={cartOpen} onClose={closeCart} cart={cart} />
 
       <ContactPanel open={contactOpen} onClose={closeContact} />
+      <SharedCanvas eventSource={rootRef} />
     </div>
   );
 }

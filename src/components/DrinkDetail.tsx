@@ -1,7 +1,7 @@
-import { useState, useEffect, Suspense } from "react";
-import { motion, AnimatePresence, animate, type Variants } from "framer-motion";
-import { Canvas } from "@react-three/fiber";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence, animate, type MotionValue, type Variants } from "framer-motion";
 import { DetailScene } from "./BottleModel";
+import { SceneView } from "./SharedCanvas";
 import { ingredientBenefits, PRICE, type Drink } from "../data/drinks";
 
 const contentVariants: Variants = {
@@ -142,7 +142,9 @@ function IngredientChips({ drink }: { drink: Drink }) {
   );
 }
 
-export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, onPrev, onNext, onBack, onAddToCart }: {
+const DETAIL_CAMERA = { position: [0, 0, 3.4] as [number, number, number], fov: 40 };
+
+export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, onPrev, onNext, onBack, onAddToCart, fade }: {
   drink: Drink;
   index: number;
   total: number;
@@ -152,7 +154,9 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
   onNext: () => void;
   onBack: () => void;
   onAddToCart: () => void;
+  fade?: MotionValue<number>;
 }) {
+  const bottleArea = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!keyboardEnabled) return;
     const onKey = (e: KeyboardEvent) => {
@@ -210,18 +214,20 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
         {/* Left — interactive bottle */}
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-full" style={{ height: "clamp(340px, 55vh, 480px)" }}>
-            {/* offsetSize: measure layout size, not the transformed size mid-animation */}
-            <Canvas
-              resize={{ offsetSize: true }}
-              className="cursor-grab active:cursor-grabbing touch-none"
-              camera={{ position: [0, 0, 3.4], fov: 40 }}
-              gl={{ antialias: true, alpha: true }}
-              shadows
+            <SceneView
+              className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
+              camera={DETAIL_CAMERA}
+              trackRef={bottleArea}
             >
-              <Suspense fallback={null}>
-                <DetailScene modelPath={drink.model} direction={direction} bgFrom={drink.bgFrom} bgTo={drink.bgTo} />
-              </Suspense>
-            </Canvas>
+              <DetailScene
+                modelPath={drink.model}
+                direction={direction}
+                bgFrom={drink.bgFrom}
+                bgTo={drink.bgTo}
+                track={bottleArea}
+                fade={fade}
+              />
+            </SceneView>
           </div>
 
           <div className="flex items-center gap-5">

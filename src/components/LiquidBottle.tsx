@@ -324,7 +324,8 @@ function buildParts(source: THREE.Object3D, drink: Drink | undefined) {
     ? new THREE.MeshStandardMaterial({ map: headlineTexture(drink), transparent: true, roughness: 0.45 })
     : null;
 
-  return { print: place(printMat, 1.02), cap: place(capMat), headlineMat, liquid: liquidMaterial(colour) };
+  // Own copy of the glass so per-bottle fades stay per bottle.
+  return { print: place(printMat, 1.02), cap: place(capMat), headlineMat, glass: GLASS_MATERIAL.clone(), liquid: liquidMaterial(colour) };
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -378,7 +379,7 @@ export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; mo
       <primitive object={parts.print} />
       {parts.headlineMat && <mesh geometry={HEADLINE_GEOMETRY} material={parts.headlineMat} />}
       <primitive object={parts.cap} />
-      <mesh geometry={GLASS_GEOMETRY} material={GLASS_MATERIAL} />
+      <mesh geometry={GLASS_GEOMETRY} material={parts.glass} />
     </group>
   );
 }
