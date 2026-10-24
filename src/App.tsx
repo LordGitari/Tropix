@@ -4,6 +4,9 @@ import { Canvas } from "@react-three/fiber";
 import { BottleScene } from "./components/BottleModel";
 import { DrinkDetail } from "./components/DrinkDetail";
 import { Loader } from "./components/Loader";
+import { SidePanel } from "./components/SidePanel";
+import { ContactPanel } from "./components/ContactPanel";
+import { OrderConfirmation } from "./components/OrderConfirmation";
 import { drinksData, type Drink } from "./data/drinks";
 
 function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredDrink, setHoveredDrink, setRippleOrigin, onClick }: {
@@ -95,7 +98,12 @@ export default function App() {
   const [introComplete, setIntroComplete] = useState<boolean>(false);
   const [direction, setDirection] = useState(1);
 
-  const openDrawer = (drink: Drink) => { setDrawerDrink(drink); setDrawerQty(1); };
+  const [checkedOut, setCheckedOut] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+
+  const openDrawer = (drink: Drink) => { setDrawerDrink(drink); setDrawerQty(1); setCheckedOut(false); };
+  const closeDrawer = useCallback(() => setDrawerDrink(null), []);
+  const closeContact = useCallback(() => setContactOpen(false), []);
 
   const stepDrink = useCallback((dir: number) => {
     setDirection(dir);
@@ -218,6 +226,8 @@ export default function App() {
       <nav className="w-full z-30 flex items-center justify-between px-8 py-6 max-w-6xl mx-auto">
         <span className="font-black text-white tracking-widest text-4xl">CIAO</span>
         <button
+          type="button"
+          onClick={() => setContactOpen(true)}
           className="text-white font-bold text-sm tracking-widest uppercase relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1.5px] after:bg-white after:transition-all after:duration-300 hover:after:w-full"
         >
           Contact Us
@@ -293,7 +303,7 @@ export default function App() {
                 index={drinksData.findIndex((d) => d.id === selectedDrink!.id)}
                 total={drinksData.length}
                 direction={direction}
-                keyboardEnabled={!drawerDrink}
+                keyboardEnabled={!drawerDrink && !contactOpen}
                 onPrev={showPrev}
                 onNext={showNext}
                 onBack={closeDetail}
@@ -350,31 +360,16 @@ export default function App() {
       )}
 
       {/* ── ORDER DRAWER ── */}
-      <AnimatePresence>
-        {drawerDrink && (
+      <SidePanel open={!!drawerDrink} onClose={closeDrawer} label={checkedOut ? "Thank You" : "Your Order"}>
+        {drawerDrink && (checkedOut ? (
+          <OrderConfirmation
+            lines={[{ label: `${drawerQty} × ${drawerDrink.title}`, amount: drawerQty * 3.99 }]}
+            total={drawerQty * 3.99}
+            accent={drawerDrink.bgFrom}
+            onDone={closeDrawer}
+          />
+        ) : (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="fixed inset-0 z-40 bg-black/50"
-              style={{ backdropFilter: "blur(4px)" }}
-              onClick={() => setDrawerDrink(null)}
-            />
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed top-0 right-0 h-full z-50 flex flex-col"
-              style={{ width: "min(420px, 100vw)", background: "rgba(10,10,18,0.97)", borderLeft: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(30px)" }}
-            >
-              <div className="flex items-center justify-between px-8 pt-8 pb-4">
-                <p className="text-white/40 text-xs tracking-[0.3em] uppercase">Your Order</p>
-                <button onClick={() => setDrawerDrink(null)} className="text-white/40 hover:text-white text-2xl leading-none transition-colors">×</button>
-              </div>
-
               <div
                 className="mx-6 rounded-3xl flex flex-col items-center justify-center py-8 gap-2"
                 style={{ background: `linear-gradient(135deg, ${drawerDrink.bgFrom}22, ${drawerDrink.bgTo}11)`, border: "1px solid rgba(255,255,255,0.08)" }}
@@ -407,16 +402,18 @@ export default function App() {
 
               <div className="mt-auto px-8 pb-10 pt-6">
                 <button
+                  onClick={() => setCheckedOut(true)}
                   className="w-full py-5 bg-white text-black font-black rounded-2xl tracking-widest uppercase transition-all duration-300 hover:bg-black hover:text-white"
                   style={{ boxShadow: "0 8px 30px rgba(0,0,0,0.3)" }}
                 >
                   Proceed to Checkout — ${(drawerQty * 3.99).toFixed(2)}
                 </button>
               </div>
-            </motion.div>
           </>
-        )}
-      </AnimatePresence>
+        ))}
+      </SidePanel>
+
+      <ContactPanel open={contactOpen} onClose={closeContact} />
     </div>
   );
 }
