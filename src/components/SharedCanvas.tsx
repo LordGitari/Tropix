@@ -1,8 +1,8 @@
-import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { Component, Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
-import { stepDown, stepUp, useQuality } from "../lib/quality";
+import { goLite, stepDown, stepUp, useQuality } from "../lib/quality";
 
 // One WebGL canvas for the whole site. Every 3D area on the page is a <SceneView>:
 // an ordinary, empty div in the layout. The shared canvas sits fixed over the
@@ -66,6 +66,21 @@ export function SceneView({ className, style, camera, trackRef, children }: {
 
 const OFF_SCREEN = new THREE.Vector2(10, 10);
 
+// If a 3D scene fails (e.g. a model can't be downloaded), switch the site to
+// lite mode instead of leaving an empty space.
+class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch() {
+    goLite("crash");
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 function ViewRenderer({ track, camera, children }: ViewEntry) {
   const cam = useMemo(() => new THREE.PerspectiveCamera(camera.fov, 1, 0.1, 100), [camera.fov]);
   const set = useThree((s) => s.set);
@@ -97,7 +112,11 @@ function ViewRenderer({ track, camera, children }: ViewEntry) {
     gl.setScissorTest(false);
   }, 1);
 
-  return <Suspense fallback={null}>{children}</Suspense>;
+  return (
+    <SceneErrorBoundary>
+      <Suspense fallback={null}>{children}</Suspense>
+    </SceneErrorBoundary>
+  );
 }
 
 function ViewPortal(entry: ViewEntry) {
@@ -160,6 +179,9 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
       dpr={[1, quality.dpr]}
       gl={{ antialias: true, alpha: true }}
       style={{ position: "fixed", inset: 0, zIndex: 20, pointerEvents: "none" }}
+      // Weak devices sometimes drop the 3D context (e.g. after switching apps):
+      // fall back to lite mode rather than show empty bottle slots.
+      onCreated={({ gl }) => gl.domElement.addEventListener("webglcontextlost", () => goLite("crash"))}
     >
       <FrameRateWatcher />
       <Views />

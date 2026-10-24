@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig, useMotionValue } from "framer-motion";
 import { BottleScene } from "./components/BottleModel";
 import { SceneView, SharedCanvas } from "./components/SharedCanvas";
+import { LiteCarouselBottle, LiteNotice } from "./components/LiteBottle";
+import { useLiteMode } from "./lib/quality";
 import { DrinkDetail } from "./components/DrinkDetail";
 import { Loader } from "./components/Loader";
 import { ContactPanel } from "./components/ContactPanel";
@@ -22,7 +24,8 @@ const GRAIN =
 
 const CAROUSEL_CAMERA = { position: [0, 0, 3.6] as [number, number, number], fov: 38 };
 
-function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredDrink, setHoveredDrink, setRippleOrigin, onClick }: {
+function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredDrink, setHoveredDrink, setRippleOrigin, onClick, lite }: {
+  lite: boolean;
   drink: Drink;
   index: number;
   introComplete: boolean;
@@ -78,7 +81,12 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
       transition={transition}
       className="relative shrink-0 snap-center"
       style={{ width: "180px", height: "380px", opacity }}
+      // In lite mode the whole slot is the hover/tap target (3D uses the bottle's shape).
+      {...(lite && { onPointerEnter: handlePointerEnter, onPointerLeave: handlePointerLeave, onClick: handleClick })}
     >
+      {lite ? (
+        <LiteCarouselBottle drink={drink} hovered={isHovered} />
+      ) : (
       <SceneView className="w-full h-full" camera={CAROUSEL_CAMERA}>
         <BottleScene
           modelPath={drink.model}
@@ -90,6 +98,7 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
           onPointerLeave={handlePointerLeave}
         />
       </SceneView>
+      )}
     </motion.div>
   );
 }
@@ -106,6 +115,8 @@ export default function App() {
   const [direction, setDirection] = useState(1);
   const rootRef = useRef<HTMLDivElement>(null);
   const detailOpacity = useMotionValue(0);
+  const liteReason = useLiteMode();
+  const lite = liteReason !== null;
 
   const cart = useCart();
   const [cartOpen, setCartOpen] = useState(false);
@@ -167,6 +178,7 @@ export default function App() {
   const bgText = activeDrink ? activeDrink.shortName : "";
 
   return (
+    <MotionConfig reducedMotion="user">
     <div
       ref={rootRef}
       className="relative min-h-screen w-full flex flex-col items-center font-sans select-none overflow-hidden"
@@ -236,7 +248,7 @@ export default function App() {
           transition: "left 0.6s ease, top 0.6s ease, background 0.5s ease",
         }}
       />
-      <Loader onDone={handleLoaded} />
+      <Loader onDone={handleLoaded} lite={lite} />
 
       {/* Colour splash that floods out from the clicked bottle */}
       <AnimatePresence>
@@ -365,6 +377,7 @@ export default function App() {
                   setHoveredDrink={setHoveredDrink}
                   setRippleOrigin={setRippleOrigin}
                   onClick={(origin) => openDetail(drink, origin)}
+                  lite={lite}
                 />
               ))}
               </div>
@@ -393,6 +406,7 @@ export default function App() {
                 onBack={closeDetail}
                 onAddToCart={() => { cart.add(selectedDrink!.id); playClink(); }}
                 fade={detailOpacity}
+                lite={lite}
               />
             </motion.div>
           )}
@@ -448,7 +462,8 @@ export default function App() {
       <CartDrawer open={cartOpen} onClose={closeCart} cart={cart} />
 
       <ContactPanel open={contactOpen} onClose={closeContact} />
-      <SharedCanvas eventSource={rootRef} />
+      {lite ? <LiteNotice reason={liteReason} /> : <SharedCanvas eventSource={rootRef} />}
     </div>
+    </MotionConfig>
   );
 }

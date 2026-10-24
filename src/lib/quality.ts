@@ -50,10 +50,11 @@ function setTier(next: Tier) {
   listeners.forEach((l) => l());
 }
 
-/** Frame rate is struggling: drop one tier (unless the tier was forced via ?quality=). */
+/** Frame rate is struggling: drop one tier, or switch to lite mode if already at the lowest. */
 export function stepDown() {
   if (forced) return;
-  setTier(ORDER[Math.max(0, ORDER.indexOf(tier) - 1)]);
+  if (tier === "low") goLite("too-slow");
+  else setTier(ORDER[Math.max(0, ORDER.indexOf(tier) - 1)]);
 }
 
 /** Frame rate has headroom: go back up one tier, at most to the device's best. */
@@ -68,4 +69,66 @@ export function useQualityTier() {
 
 export function useQuality() {
   return QUALITY[useQualityTier()];
+}
+
+// ── Lite mode ──
+// A 2D version (bottle photos, same layout, cart and checkout) for devices that
+// can't run the 3D well, so the site always works.
+export type LiteReason = "forced" | "no-webgl" | "software" | "reduced-motion" | "crash" | "too-slow";
+
+/** Can this browser do hardware-accelerated WebGL? */
+function webglSupport(): "ok" | "software" | "none" {
+  const tryContext = (options?: WebGLContextAttributes) => {
+    const canvas = document.createElement("canvas");
+    const gl = (canvas.getContext("webgl2", options) ?? canvas.getContext("webgl", options)) as WebGLRenderingContext | null;
+    gl?.getExtension("WEBGL_lose_context")?.loseContext(); // free it straight away
+    return !!gl;
+  };
+  try {
+    if (tryContext({ failIfMajorPerformanceCaveat: true })) return "ok";
+    return tryContext() ? "software" : "none";
+  } catch {
+    return "none";
+  }
+}
+
+function initialLite(): LiteReason | null {
+  const param = (() => {
+    try {
+      return new URLSearchParams(window.location.search).get("lite");
+    } catch {
+      return null;
+    }
+  })();
+  if (param === "1") return "forced";
+  if (param === "0") return null;
+  const gl = webglSupport();
+  if (gl === "none") return "no-webgl";
+  if (gl === "software") return "software";
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return "reduced-motion";
+  return null;
+}
+
+let lite: LiteReason | null = initialLite();
+// Set when the visitor chose "Try 3D" (or ?lite=0): only a crash switches back then.
+let chose3d = new URLSearchParams(window.location.search).get("lite") === "0";
+
+/** Switch to the 2D version. A crash always does; other reasons respect "Try 3D". */
+export function goLite(reason: LiteReason) {
+  if (lite || (chose3d && reason !== "crash")) return;
+  lite = reason;
+  listeners.forEach((l) => l());
+}
+
+/** Visitor asked for the 3D version anyway. */
+export function leaveLite() {
+  if (!lite) return;
+  lite = null;
+  chose3d = true;
+  setTier("low"); // start gently; it steps up if the device copes
+  listeners.forEach((l) => l());
+}
+
+export function useLiteMode() {
+  return useSyncExternalStore(subscribe, () => lite);
 }

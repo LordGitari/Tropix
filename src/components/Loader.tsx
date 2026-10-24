@@ -1,14 +1,32 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProgress } from "@react-three/drei";
+import { drinksData } from "../data/drinks";
 
-// Full-screen loader: a bottle silhouette that fills with liquid as the 3D models download.
-export function Loader({ onDone }: { onDone: () => void }) {
+// Lite mode only needs the bottle photos; track those instead of 3D models.
+function useImageProgress(enabled: boolean) {
+  const [loaded, setLoaded] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    drinksData.forEach((d) => {
+      const img = new Image();
+      // Count failures too, so a missing image can't block the page.
+      img.onload = img.onerror = () => setLoaded((n) => n + 1);
+      img.src = d.image;
+    });
+  }, [enabled]);
+  return (loaded / drinksData.length) * 100;
+}
+
+// Full-screen loader: a bottle silhouette that fills with liquid as the 3D models
+// (or, in lite mode, the bottle photos) download.
+export function Loader({ onDone, lite }: { onDone: () => void; lite: boolean }) {
   const { active, progress, errors } = useProgress();
+  const imageProgress = useImageProgress(lite);
   const [done, setDone] = useState(false);
-  const pct = Math.round(progress);
+  const pct = Math.round(lite ? imageProgress : progress);
   // A failed download shouldn't leave visitors stuck on the loader.
-  const finished = (!active && progress >= 100) || errors.length > 0;
+  const finished = lite ? imageProgress >= 100 : (!active && progress >= 100) || errors.length > 0;
 
   useEffect(() => {
     if (done || !finished) return;

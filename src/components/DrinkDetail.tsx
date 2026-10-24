@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, animate, type MotionValue, type Variants } from "framer-motion";
 import { DetailScene } from "./BottleModel";
 import { SceneView } from "./SharedCanvas";
+import { LiteDetailBottle } from "./LiteBottle";
 import { ingredientBenefits, PRICE, type Drink } from "../data/drinks";
 
 const contentVariants: Variants = {
@@ -144,7 +145,7 @@ function IngredientChips({ drink }: { drink: Drink }) {
 
 const DETAIL_CAMERA = { position: [0, 0, 3.4] as [number, number, number], fov: 40 };
 
-export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, onPrev, onNext, onBack, onAddToCart, fade }: {
+export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, onPrev, onNext, onBack, onAddToCart, fade, lite }: {
   drink: Drink;
   index: number;
   total: number;
@@ -155,6 +156,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
   onBack: () => void;
   onAddToCart: () => void;
   fade?: MotionValue<number>;
+  lite: boolean;
 }) {
   const bottleArea = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -214,6 +216,9 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
         {/* Left — interactive bottle */}
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-full" style={{ height: "clamp(340px, 55vh, 480px)" }}>
+            {lite ? (
+              <LiteDetailBottle drink={drink} direction={direction} />
+            ) : (
             <SceneView
               className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
               camera={DETAIL_CAMERA}
@@ -228,6 +233,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
                 fade={fade}
               />
             </SceneView>
+            )}
           </div>
 
           <div className="flex items-center gap-5">
@@ -237,7 +243,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
             </span>
             <button type="button" onClick={onNext} className={arrowClass} aria-label="Next flavour">→</button>
           </div>
-          <p className="text-white/35 text-[10px] tracking-[0.3em] uppercase">Drag to rotate in any direction</p>
+          {!lite && <p className="text-white/35 text-[10px] tracking-[0.3em] uppercase">Drag to rotate in any direction</p>}
         </div>
 
         {/* Right — product sheet */}
