@@ -170,6 +170,51 @@ function BottleSwapper({ modelPath, direction }: { modelPath: string; direction:
   );
 }
 
+// Fizz: small bubbles rising in a loose column around the bottle.
+const BUBBLE_SEEDS = Array.from({ length: 42 }, () => ({
+  angle: Math.random() * Math.PI * 2,
+  radius: 0.42 + Math.random() * 0.5,
+  y: -1.1 + Math.random() * 2.4,
+  speed: 0.15 + Math.random() * 0.35,
+  size: 0.012 + Math.random() * 0.03,
+  wobble: Math.random() * Math.PI * 2,
+}));
+const BUBBLE_BOTTOM = -1.1;
+const BUBBLE_TOP = 1.3;
+
+function Bubbles({ color }: { color: string }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const bubbles = useRef(BUBBLE_SEEDS.map((b) => ({ ...b })));
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  useFrame((state, delta) => {
+    if (!mesh.current) return;
+    const time = state.clock.elapsedTime;
+    bubbles.current.forEach((b, i) => {
+      b.y += b.speed * delta;
+      if (b.y > BUBBLE_TOP) b.y = BUBBLE_BOTTOM;
+      // Grow in at the bottom, shrink away near the top.
+      const fade = Math.min(1, (b.y - BUBBLE_BOTTOM) / 0.3, (BUBBLE_TOP - b.y) / 0.5);
+      dummy.position.set(
+        Math.cos(b.angle) * b.radius + Math.sin(time * 2 + b.wobble) * 0.03,
+        b.y,
+        Math.sin(b.angle) * b.radius + Math.cos(time * 1.7 + b.wobble) * 0.03,
+      );
+      dummy.scale.setScalar(b.size * Math.max(0, fade));
+      dummy.updateMatrix();
+      mesh.current!.setMatrixAt(i, dummy.matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, BUBBLE_SEEDS.length]}>
+      <sphereGeometry args={[1, 12, 12]} />
+      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} transparent opacity={0.55} roughness={0.15} metalness={0.1} />
+    </instancedMesh>
+  );
+}
+
 export function DetailScene({ modelPath, direction, bgFrom, bgTo }: { modelPath: string; direction: number; bgFrom: string; bgTo: string }) {
   return (
     <>
@@ -189,6 +234,7 @@ export function DetailScene({ modelPath, direction, bgFrom, bgTo }: { modelPath:
           <BottleSwapper modelPath={modelPath} direction={direction} />
         </Float>
       </PresentationControls>
+      <Bubbles color={bgFrom} />
       <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={3} blur={2.4} far={2.5} />
     </>
   );
