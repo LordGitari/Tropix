@@ -83,9 +83,13 @@ const GLASS_MATERIAL = new THREE.MeshPhysicalMaterial({
   envMapIntensity: 1.3,
 });
 
-// Splits a model texture into a print mask (white or near-black text) and the
-// average drink colour (the saturated pixels). Cached per texture.
-const analysed = new Map<THREE.Texture, { mask: THREE.Texture; colour: THREE.Color }>();
+// Pulls the printed text out of a model texture. The drink colour is found
+// first (the average saturated pixel); then anything clearly lighter and greyer
+// than it is white print, and anything clearly darker is dark print. The result
+// is a clean white / near-black text layer with soft edges. Cached per texture.
+const analysed = new Map<THREE.Texture, { print: THREE.Texture; colour: THREE.Color }>();
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 function analyse(map: THREE.Texture) {
   const cached = analysed.get(map);
@@ -99,28 +103,37 @@ function analyse(map: THREE.Texture) {
   ctx.drawImage(image, 0, 0);
   const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const d = img.data;
+
   let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const max = Math.max(d[i], d[i + 1], d[i + 2]);
+    const min = Math.min(d[i], d[i + 1], d[i + 2]);
+    if (max > 0 && (max - min) / max > 0.4) {
+      r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+    }
+  }
+  const drinkLum = (r + g + b) / 3 / n;
+
   for (let i = 0; i < d.length; i += 4) {
     const max = Math.max(d[i], d[i + 1], d[i + 2]);
     const min = Math.min(d[i], d[i + 1], d[i + 2]);
     const sat = max === 0 ? 0 : (max - min) / max;
     const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
-    const print = (sat < 0.18 && lum > 175) || lum < 55;
-    if (!print && sat > 0.4) {
-      r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
-    }
-    const v = print ? 255 : 0;
-    d[i] = d[i + 1] = d[i + 2] = v;
-    d[i + 3] = 255;
+    const light = clamp01((lum - drinkLum - 45) / 20) * clamp01((0.24 - sat) / 0.08);
+    const dark = clamp01((drinkLum - 40 - lum) / 20);
+    const isLight = light >= dark;
+    d[i] = d[i + 1] = d[i + 2] = isLight ? 250 : 18;
+    d[i + 3] = Math.round(Math.max(light, dark) * 255);
   }
   ctx.putImageData(img, 0, 0);
 
-  const mask = new THREE.CanvasTexture(canvas);
-  mask.flipY = map.flipY;
-  mask.channel = map.channel;
-  mask.anisotropy = 8;
+  const print = new THREE.CanvasTexture(canvas);
+  print.flipY = map.flipY;
+  print.channel = map.channel;
+  print.colorSpace = THREE.SRGBColorSpace;
+  print.anisotropy = 8;
   const colour = new THREE.Color().setRGB(r / n / 255, g / n / 255, b / n / 255, THREE.SRGBColorSpace);
-  const result = { mask, colour };
+  const result = { print, colour };
   analysed.set(map, result);
   return result;
 }
@@ -186,18 +199,22 @@ function buildParts(source: THREE.Object3D) {
   const original = mesh.material as THREE.MeshStandardMaterial;
   const map = original.map!;
   map.anisotropy = 8;
-  const { mask, colour } = analyse(map);
+  const { print, colour } = analyse(map);
 
   // The mesh's transform relative to the model root (it carries quantization scale).
   source.updateMatrixWorld(true);
   const toBottle = new THREE.Matrix4().copy(source.matrixWorld).invert().multiply(mesh.matrixWorld);
 
+  // Lit like paint, plus a little self-glow so white text stays bright even on
+  // the shaded side of the bottle.
   const printMat = new THREE.MeshStandardMaterial({
-    map,
-    alphaMap: mask,
+    map: print,
+    emissiveMap: print,
+    emissive: "#ffffff",
+    emissiveIntensity: 0.35,
     alphaTest: 0.5,
     alphaToCoverage: true,
-    roughness: 0.35,
+    roughness: 0.45,
     side: THREE.DoubleSide,
   });
   clipHeight(printMat, toBottle, PRINT_RANGE[0], PRINT_RANGE[1]);
