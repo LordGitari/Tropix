@@ -167,7 +167,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
         }}
       />
 
-      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-8 md:p-14">
+      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-center p-5 sm:p-8 md:p-14">
         {/* Left — interactive bottle */}
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-full" style={{ height: "clamp(340px, 55vh, 480px)" }}>

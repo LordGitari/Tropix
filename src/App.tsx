@@ -58,7 +58,7 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
       initial={{ y: -120, opacity: 0 }}
       animate={animate}
       transition={transition}
-      className="relative"
+      className="relative shrink-0 snap-center"
       style={{ width: "180px", height: "380px" }}
     >
       <Canvas
@@ -252,9 +252,14 @@ export default function App() {
             <motion.div
               key="carousel"
               exit={{ opacity: 0, transition: { duration: 0.15 } }}
-              className="flex items-end justify-center gap-4 md:gap-10"
-              style={{ paddingTop: "4rem", pointerEvents: launching ? "none" : undefined }}
+              className="w-full flex flex-col items-center gap-2"
+              style={{ pointerEvents: launching ? "none" : undefined }}
             >
+              {/* Phones: swipeable row that snaps to each bottle. Desktop: all four side by side. */}
+              <div
+                className="no-scrollbar -mx-8 w-[calc(100%+4rem)] md:mx-0 md:w-auto flex items-end gap-4 md:gap-10 overflow-x-auto md:overflow-visible snap-x snap-mandatory px-[calc(50%-90px)] md:px-0"
+                style={{ paddingTop: "4rem" }}
+              >
               {drinksData.map((drink, index) => (
                 <TiltBottle
                   key={drink.id}
@@ -269,6 +274,10 @@ export default function App() {
                   onClick={(origin) => openDetail(drink, origin)}
                 />
               ))}
+              </div>
+              <p className="md:hidden text-white/35 text-[10px] tracking-[0.3em] uppercase">
+                Swipe for more flavours · Tap to open
+              </p>
             </motion.div>
           ) : (
             <motion.div
