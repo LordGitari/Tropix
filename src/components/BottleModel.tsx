@@ -2,14 +2,9 @@ import { useRef, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF, ContactShadows, Float, Environment, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
+import { LiquidBottle } from "./LiquidBottle";
 
-// ── Glass look ──
-// The models are one solid painted mesh, so on their own they read as matte stone.
-// Three things make them read as glossy glass bottles:
-// 1. a studio environment for them to reflect (light strips either side, softbox on top),
-// 2. a clear-coated, smoother version of their own material,
-// 3. a thin shell around the bottle that only adds reflections (additive, black base).
-
+// Something for the glass to reflect: light strips either side, softbox on top.
 function StudioEnvironment() {
   return (
     <Environment resolution={256} frames={1}>
@@ -19,61 +14,6 @@ function StudioEnvironment() {
       <Lightformer form="rect" intensity={0.8} position={[0, 0, -4]} scale={[6, 4, 1]} />
     </Environment>
   );
-}
-
-const glossy = new Map<THREE.Material, THREE.MeshPhysicalMaterial>();
-
-function toGlossy(mat: THREE.MeshStandardMaterial) {
-  let out = glossy.get(mat);
-  if (!out) {
-    out = new THREE.MeshPhysicalMaterial({
-      color: mat.color,
-      map: mat.map,
-      normalMap: mat.normalMap,
-      normalScale: mat.normalScale,
-      roughnessMap: mat.roughnessMap,
-      metalnessMap: mat.metalnessMap,
-      metalness: mat.metalness,
-      roughness: 0.35, // scales the texture's roughness down
-      clearcoat: 1,
-      clearcoatRoughness: 0.06,
-      side: mat.side,
-    });
-    glossy.set(mat, out);
-  }
-  return out;
-}
-
-/** Swaps the model's materials for the glossy versions (safe to call repeatedly). */
-function polish(root: THREE.Object3D) {
-  root.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    if (mesh.isMesh && mesh.material instanceof THREE.MeshStandardMaterial && !(mesh.material instanceof THREE.MeshPhysicalMaterial)) {
-      mesh.material = toGlossy(mesh.material);
-    }
-  });
-}
-
-const SHELL_MATERIAL = new THREE.MeshPhysicalMaterial({
-  color: "#000000",
-  roughness: 0.04,
-  clearcoat: 1,
-  clearcoatRoughness: 0.02,
-  envMapIntensity: 1.6,
-  transparent: true,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false,
-});
-
-function GlassShell({ source }: { source: THREE.Object3D }) {
-  const shell = useMemo(() => {
-    const copy = source.clone();
-    copy.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) (child as THREE.Mesh).material = SHELL_MATERIAL;
-    });
-    return copy;
-  }, [source]);
-  return <primitive object={shell} scale={1.015} />;
 }
 
 interface BottleModelProps {
@@ -94,22 +34,6 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
   // Gentle sway around the front instead of a full spin, so the label stays readable.
   const swayAmount = useRef(1);
   const [swayPhase] = useState(() => Math.random() * Math.PI * 2);
-  useMemo(() => polish(scene), [scene]);
-
-  useEffect(() => {
-    scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        materials.forEach((mat) => {
-          if (mat instanceof THREE.MeshStandardMaterial) {
-            mat.envMapIntensity = hovered ? 2.5 : 1.2;
-            mat.needsUpdate = true;
-          }
-        });
-      }
-    });
-  }, [hovered, scene]);
 
   useFrame(({ clock }) => {
     if (!ref.current) return;
@@ -135,8 +59,7 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
-      <primitive object={scene} />
-      <GlassShell source={scene} />
+      <LiquidBottle source={scene} />
     </group>
   );
 }
@@ -182,17 +105,7 @@ export function BottleScene({
 
 function ClonedModel({ modelPath }: { modelPath: string }) {
   const { scene } = useGLTF(modelPath);
-  const model = useMemo(() => {
-    const copy = scene.clone();
-    polish(copy);
-    return copy;
-  }, [scene]);
-  return (
-    <>
-      <primitive object={model} />
-      <GlassShell source={model} />
-    </>
-  );
+  return <LiquidBottle source={scene} />;
 }
 
 const ease = {
