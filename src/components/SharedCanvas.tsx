@@ -2,7 +2,7 @@ import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useSt
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { PerformanceMonitor, useProgress } from "@react-three/drei";
 import * as THREE from "three";
-import { goLite, stepDown, stepUp, useQuality } from "../lib/quality";
+import { goLite, stepDown, stepUp, useQuality, useQualityTier } from "../lib/quality";
 import { reportDownloads, viewPreparing, viewReady } from "../lib/sceneStatus";
 import { useViewEntries, type ViewEntry } from "../lib/sceneViews";
 
@@ -161,10 +161,69 @@ function DownloadReporter() {
   return null;
 }
 
+// ── Render only when needed ──
+// The canvas runs on demand: this driver asks for frames itself, and only
+//   - while at least one 3D view is on screen (scroll away and the 3D stops), and
+//   - at full speed while the visitor is interacting (moving the pointer, dragging,
+//     scrolling, typing) or on high quality; otherwise at half speed, which is
+//     plenty for the gentle idle motion and halves the work on weaker devices.
+// Hidden tabs already get no frames at all (the browser pauses them).
+const ACTIVE_FOR_MS = 2500;
+let lastInteraction = performance.now();
+
+function useInteractionClock() {
+  useEffect(() => {
+    const mark = () => {
+      lastInteraction = performance.now();
+    };
+    const events = ["pointermove", "pointerdown", "wheel", "keydown", "touchstart"] as const;
+    events.forEach((e) => window.addEventListener(e, mark, { passive: true }));
+    // Capture catches scrolling inside any element too (e.g. the phone carousel).
+    window.addEventListener("scroll", mark, { passive: true, capture: true });
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, mark));
+      window.removeEventListener("scroll", mark, { capture: true });
+    };
+  }, []);
+}
+
+function onScreen(el: HTMLElement | null) {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth;
+}
+
+function FrameDriver({ onFullSpeed }: { onFullSpeed: (full: boolean) => void }) {
+  const invalidate = useThree((s) => s.invalidate);
+  const entries = useViewEntries();
+  const highQuality = useQualityTier() === "high";
+  useInteractionClock();
+
+  useEffect(() => {
+    let raf = 0;
+    let tick = 0;
+    let wasFull: boolean | null = null;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      tick++;
+      const visible = entries.some(([, v]) => onScreen(v.track.current));
+      const full = visible && (highQuality || performance.now() - lastInteraction < ACTIVE_FOR_MS);
+      if (full !== wasFull) onFullSpeed((wasFull = full));
+      if (visible && (full || tick % 2 === 0)) invalidate();
+    };
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, [entries, highQuality, invalidate, onFullSpeed]);
+  return null;
+}
+
 export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLElement | null> }) {
   const quality = useQuality();
+  // The frame-rate watcher only judges the device while frames run at full speed.
+  const [fullSpeed, setFullSpeed] = useState(false);
   return (
     <Canvas
+      frameloop="demand"
       eventSource={eventSource as RefObject<HTMLElement>}
       eventPrefix="client"
       dpr={[1, quality.dpr]}
@@ -175,7 +234,8 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
       onCreated={({ gl }) => gl.domElement.addEventListener("webglcontextlost", () => goLite("crash"))}
     >
       <DownloadReporter />
-      <FrameRateWatcher />
+      <FrameDriver onFullSpeed={setFullSpeed} />
+      {fullSpeed && <FrameRateWatcher />}
       <Views />
     </Canvas>
   );

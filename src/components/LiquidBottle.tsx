@@ -311,6 +311,7 @@ export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; mo
   const parts = useMemo(() => buildParts(source, drink, printTexture), [source, drink, printTexture]);
   const liquidMesh = useRef<THREE.Mesh>(null);
   const heights = useRef<Float32Array>(null);
+  const level = useRef({ cx: NaN, cy: NaN, cz: NaN, value: 0 });
   // Surface tilt with a little slosh: it springs back to level and lags behind
   // when the bottle is turned quickly.
   const slosh = useRef({ normal: UP.clone(), velocity: new THREE.Vector3(), lastUp: UP.clone(), up: new THREE.Vector3(), started: false });
@@ -335,17 +336,24 @@ export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; mo
     const cx = e[0] * normal.x + e[1] * normal.y + e[2] * normal.z;
     const cy = e[4] * normal.x + e[5] * normal.y + e[6] * normal.z;
     const cz = e[8] * normal.x + e[9] * normal.y + e[10] * normal.z;
-    heights.current ??= new Float32Array(SAMPLE_COUNT);
-    const h = heights.current;
-    for (let i = 0, j = 0; i < SAMPLE_COUNT; i++, j += 3) {
-      h[i] = cx * VOLUME_SAMPLES[j] + cy * VOLUME_SAMPLES[j + 1] + cz * VOLUME_SAMPLES[j + 2];
+    // Only re-level when the tilt (or scale) actually changed; spinning upright
+    // or standing still keeps the same level, so the sort is skipped.
+    const l = level.current;
+    // (Written as !(<=) so the first frame, compared against NaN, always computes.)
+    if (!(Math.abs(cx - l.cx) + Math.abs(cy - l.cy) + Math.abs(cz - l.cz) <= 1e-5)) {
+      heights.current ??= new Float32Array(SAMPLE_COUNT);
+      const h = heights.current;
+      for (let i = 0, j = 0; i < SAMPLE_COUNT; i++, j += 3) {
+        h[i] = cx * VOLUME_SAMPLES[j] + cy * VOLUME_SAMPLES[j + 1] + cz * VOLUME_SAMPLES[j + 2];
+      }
+      h.sort();
+      level.current = { cx, cy, cz, value: h[Math.floor(FILL_SHARE * (SAMPLE_COUNT - 1))] };
     }
-    h.sort();
 
     const u = parts.liquid.uniforms;
     u.uOrigin.value.set(e[12], e[13], e[14]);
     u.uNormal.value.copy(normal);
-    u.uLevel.value = h[Math.floor(FILL_SHARE * (SAMPLE_COUNT - 1))];
+    u.uLevel.value = level.current.value;
   });
 
   if (!parts) return <primitive object={source} />;
