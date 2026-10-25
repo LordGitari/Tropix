@@ -208,7 +208,8 @@ export default function App() {
           />
         ))}
         <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%)" }} />
-        <div className="absolute inset-0 opacity-[0.08] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
+        {/* Plain (not blend-mode) grain: a full-screen blend would be recomposited every frame. */}
+        <div className="absolute inset-0 opacity-[0.035]" style={{ backgroundImage: GRAIN }} />
       </motion.div>
       {/* Liquid Ripple */}
       <AnimatePresence>
@@ -225,30 +226,29 @@ export default function App() {
               height: "400px",
               left: rippleOrigin.x - 200,
               top: rippleOrigin.y - 200,
-              background: `radial-gradient(circle, ${hoveredDrink.bgFrom}cc 0%, ${hoveredDrink.bgTo}88 40%, transparent 70%)`,
-              filter: "blur(8px)",
+              // Soft edge built into the gradient (a blur filter here was re-rendered every frame).
+              background: `radial-gradient(circle closest-side, ${hoveredDrink.bgFrom}cc 0%, ${hoveredDrink.bgTo}88 45%, ${hoveredDrink.bgTo}33 75%, transparent 100%)`,
             }}
           />
         )}
       </AnimatePresence>
-      {/* Persistent color wash from ripple origin (centred behind the detail view) */}
+      {/* Persistent color wash from ripple origin (centred behind the detail view).
+          Moves with transforms and fades softly via its gradient: no blur filter, no layout work. */}
       <motion.div
-        className="fixed rounded-full pointer-events-none z-0"
+        className="fixed left-0 top-0 rounded-full pointer-events-none z-0"
         animate={{
           opacity: activeDrink ? (isExpanded ? 0.4 : 0.55) : 0,
           scale: activeDrink ? 1 : 0.3,
+          x: (rippleOrigin && !isExpanded ? rippleOrigin.x : window.innerWidth / 2) - 450,
+          y: (rippleOrigin && !isExpanded ? rippleOrigin.y : window.innerHeight / 2) - 450,
         }}
-        transition={{ duration: 0.7, ease: "easeOut" }}
+        transition={{ duration: 0.7, ease: "easeOut", x: { duration: 0.6 }, y: { duration: 0.6 } }}
         style={{
           width: "900px",
           height: "900px",
-          left: rippleOrigin && !isExpanded ? rippleOrigin.x - 450 : "calc(50% - 450px)",
-          top: rippleOrigin && !isExpanded ? rippleOrigin.y - 450 : "calc(50% - 450px)",
           background: activeDrink
-            ? `radial-gradient(circle, ${activeDrink.bgFrom}bb 0%, ${activeDrink.bgTo}66 50%, transparent 75%)`
+            ? `radial-gradient(circle closest-side, ${activeDrink.bgFrom}bb 0%, ${activeDrink.bgTo}66 40%, ${activeDrink.bgTo}2e 65%, ${activeDrink.bgTo}0d 85%, transparent 100%)`
             : "transparent",
-          filter: "blur(60px)",
-          transition: "left 0.6s ease, top 0.6s ease, background 0.5s ease",
         }}
       />
       <Loader onDone={handleLoaded} lite={lite} />

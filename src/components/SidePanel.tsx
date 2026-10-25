@@ -1,13 +1,16 @@
 import { useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRichEffects } from "../lib/quality";
 
-// Right-hand slide-in panel with a blurred backdrop. Esc or a backdrop click closes it.
+// Right-hand slide-in panel over a dimmed (on high quality, also blurred) page.
+// Esc or a backdrop click closes it.
 export function SidePanel({ open, onClose, label, children }: {
   open: boolean;
   onClose: () => void;
   label: string;
   children: ReactNode;
 }) {
+  const rich = useRichEffects();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -25,8 +28,8 @@ export function SidePanel({ open, onClose, label, children }: {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-40 bg-black/50"
-            style={{ backdropFilter: "blur(4px)" }}
+            className={`fixed inset-0 z-40 ${rich ? "bg-black/50" : "bg-black/65"}`}
+            style={rich ? { backdropFilter: "blur(4px)" } : undefined}
             onClick={onClose}
           />
           <motion.aside
@@ -38,7 +41,7 @@ export function SidePanel({ open, onClose, label, children }: {
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className="fixed top-0 right-0 h-full z-50 flex flex-col overflow-y-auto"
-            style={{ width: "min(420px, 100vw)", background: "rgba(10,10,18,0.97)", borderLeft: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(30px)" }}
+            style={{ width: "min(420px, 100vw)", background: "rgba(10,10,18,0.97)", borderLeft: "1px solid rgba(255,255,255,0.1)" }}
           >
             <div className="flex items-center justify-between px-8 pt-8 pb-4">
               <p className="text-white/40 text-xs tracking-[0.3em] uppercase">{label}</p>

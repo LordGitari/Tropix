@@ -132,3 +132,10 @@ export function leaveLite() {
 export function useLiteMode() {
   return useSyncExternalStore(subscribe, () => lite);
 }
+
+/** Frosted-glass blurs are kept only where they're cheap: high quality, full 3D. */
+export function useRichEffects() {
+  const tier = useQualityTier();
+  const lite = useLiteMode();
+  return tier === "high" && lite === null;
+}

@@ -4,6 +4,7 @@ import { SceneView } from "./SceneView";
 
 const DetailScene = lazy(() => import("./BottleModel").then((m) => ({ default: m.DetailScene })));
 import { LiteDetailBottle } from "./LiteBottle";
+import { useRichEffects } from "../lib/quality";
 import { ingredientBenefits, PRICE, type Drink } from "../data/drinks";
 
 const contentVariants: Variants = {
@@ -160,6 +161,7 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
   lite: boolean;
 }) {
   const bottleArea = useRef<HTMLDivElement>(null);
+  const rich = useRichEffects();
   useEffect(() => {
     if (!keyboardEnabled) return;
     const onKey = (e: KeyboardEvent) => {
@@ -178,8 +180,11 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
     <div
       className="relative w-full overflow-hidden rounded-3xl border border-white/20"
       style={{
-        backdropFilter: "blur(30px)",
-        WebkitBackdropFilter: "blur(30px)",
+        // Frosted glass on high quality; elsewhere a tinted fill that reads the same
+        // (a backdrop blur is recomputed every frame while the glows move behind it).
+        ...(rich
+          ? { backdropFilter: "blur(30px)", WebkitBackdropFilter: "blur(30px)" }
+          : { background: "rgba(14, 14, 24, 0.6)" }),
         boxShadow: "0 25px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.2)",
       }}
     >
@@ -207,9 +212,9 @@ export function DrinkDetail({ drink, index, total, direction, keyboardEnabled, o
         className="absolute inset-y-0 w-2/3 pointer-events-none"
         style={{
           left: "16%",
-          background: `linear-gradient(90deg, transparent, ${drink.bgFrom}55, ${drink.bgTo}33, transparent)`,
+          // Soft edges come from the gradient stops (no blur filter while it moves).
+          background: `linear-gradient(90deg, transparent, ${drink.bgFrom}22 20%, ${drink.bgFrom}55 42%, ${drink.bgTo}33 62%, ${drink.bgTo}11 80%, transparent)`,
           skewX: -12,
-          filter: "blur(20px)",
         }}
       />
 
