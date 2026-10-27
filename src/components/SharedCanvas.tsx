@@ -91,7 +91,7 @@ function ViewRenderer({ track, camera, children }: ViewEntry) {
     gl.setScissorTest(true);
     gl.render(state.scene, camera);
     gl.setScissorTest(false);
-  }, 1);
+  }, 2);
 
   return (
     <SceneErrorBoundary>
@@ -101,6 +101,16 @@ function ViewRenderer({ track, camera, children }: ViewEntry) {
       </Suspense>
     </SceneErrorBoundary>
   );
+}
+
+// Wipes the whole canvas at the start of every frame, before the views draw.
+// Without it, a bottle scrolled away would leave its last picture behind.
+function ClearFrame() {
+  useFrame(({ gl }) => {
+    gl.setScissorTest(false);
+    gl.clear();
+  }, 1);
+  return null;
 }
 
 function ViewPortal(entry: ViewEntry) {
@@ -203,13 +213,17 @@ function FrameDriver({ onFullSpeed }: { onFullSpeed: (full: boolean) => void }) 
     let raf = 0;
     let tick = 0;
     let wasFull: boolean | null = null;
+    let wasVisible = true;
     const loop = () => {
       raf = requestAnimationFrame(loop);
       tick++;
       const visible = entries.some(([, v]) => onScreen(v.track.current));
       const full = visible && (highQuality || performance.now() - lastInteraction < ACTIVE_FOR_MS);
       if (full !== wasFull) onFullSpeed((wasFull = full));
-      if (visible && (full || tick % 2 === 0)) invalidate();
+      // Once every view has left the screen, draw one last (empty) frame so
+      // the canvas is wiped clean instead of keeping the bottles' last picture.
+      if ((visible || wasVisible) && (full || tick % 2 === 0 || !visible)) invalidate();
+      wasVisible = visible;
     };
     loop();
     return () => cancelAnimationFrame(raf);
@@ -233,6 +247,7 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
       // fall back to lite mode rather than show empty bottle slots.
       onCreated={({ gl }) => gl.domElement.addEventListener("webglcontextlost", () => goLite("crash"))}
     >
+      <ClearFrame />
       <DownloadReporter />
       <FrameDriver onFullSpeed={setFullSpeed} />
       {fullSpeed && <FrameRateWatcher />}

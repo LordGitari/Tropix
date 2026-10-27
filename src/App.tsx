@@ -82,8 +82,8 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
       initial={{ y: -120, opacity: 0 }}
       animate={animate}
       transition={transition}
-      className="relative shrink-0 snap-center"
-      style={{ width: "180px", height: "380px", opacity }}
+      className="bottle-slot relative shrink-0"
+      style={{ opacity }}
       // In lite mode the whole slot is the hover/tap target (3D uses the bottle's shape).
       {...(lite && { onPointerEnter: handlePointerEnter, onPointerLeave: handlePointerLeave, onClick: handleClick })}
     >
@@ -353,7 +353,7 @@ export default function App() {
 
 
       {/* Main Viewport */}
-      <div className="relative z-10 w-full max-w-6xl px-8 flex items-center justify-center" style={{ minHeight: "80vh" }}>
+      <div className="relative z-10 w-full max-w-6xl px-4 sm:px-8 flex items-center justify-center" style={{ minHeight: "80vh" }}>
         <AnimatePresence mode="wait">
           {!isExpanded ? (
             <motion.div
@@ -362,11 +362,8 @@ export default function App() {
               className="w-full flex flex-col items-center gap-2"
               style={{ pointerEvents: launching ? "none" : undefined }}
             >
-              {/* Phones: swipeable row that snaps to each bottle. Desktop: all four side by side. */}
-              <div
-                className="no-scrollbar -mx-8 w-[calc(100%+4rem)] md:mx-0 md:w-auto flex items-end gap-4 md:gap-10 overflow-x-auto md:overflow-visible snap-x snap-mandatory px-[calc(50%-90px)] md:px-0"
-                style={{ paddingTop: "4rem" }}
-              >
+              {/* All four bottles always on screen: a 2×2 grid on phones, one row from tablets up. */}
+              <div className="grid grid-cols-2 justify-items-center items-end gap-x-3 gap-y-1 pt-4 sm:flex sm:gap-6 lg:gap-10 sm:pt-16">
               {drinksData.map((drink, index) => (
                 <TiltBottle
                   key={drink.id}
@@ -384,7 +381,7 @@ export default function App() {
               ))}
               </div>
               <p className="md:hidden text-white/35 text-[10px] tracking-[0.3em] uppercase">
-                Swipe for more flavours · Tap to open
+                Tap a bottle to open
               </p>
             </motion.div>
           ) : (

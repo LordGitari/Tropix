@@ -1,9 +1,15 @@
 @import "tailwindcss";
-@utility no-scrollbar {
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
+
+/* Carousel bottle slot. Phones: 2×2 grid sized to fit the screen's width and
+   height. Tablets: four in a row, shrunk to fit. Desktop: full size. The shape
+   (180×380) never changes, so the 3D camera frames the bottle the same way. */
+.bottle-slot {
+  aspect-ratio: 180 / 380;
+  width: min(42vw, 170px);
+  width: min(42vw, 170px, calc((100svh - 11rem) * 0.237));
+}
+@media (min-width: 640px) {
+  .bottle-slot { width: min(calc((100vw - 8.5rem) / 4), 180px); }
 }
 
 /* Ambient backdrop: big soft flavour glows that drift slowly behind the page. */

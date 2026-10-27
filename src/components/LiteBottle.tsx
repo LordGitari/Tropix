@@ -19,7 +19,7 @@ export function LiteCarouselBottle({ drink, hovered }: { drink: Drink; hovered: 
         animate={{ y: hovered ? -14 : 0, scale: hovered ? 1.08 : 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
         className="relative select-none"
-        style={{ height: 370, width: "auto", maxWidth: "none" }}
+        style={{ height: "97%", width: "auto", maxWidth: "none" }}
       />
     </div>
   );
