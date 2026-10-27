@@ -42,6 +42,17 @@ Built with React, Three.js (via React Three Fiber) and Framer Motion.
 - Loading screen with a filling-bottle animation.
 - Synthesised sound effects (cork pop, swoosh, glass clink) with a mute toggle.
 
+## Performance
+
+The site is built to run on any device and to look its best on powerful ones.
+
+- **One 3D canvas for the whole page.** Every bottle is drawn by a single shared WebGL canvas, so models, textures and shaders are loaded once and opening a bottle is instant.
+- **Quality that adapts to the device.** A starting quality (high, medium or low) is picked from the device's memory, CPU and screen type, then adjusted live from the frame rate. High quality adds refractive glass, sharper rendering and detailed shadows; low quality keeps the same look with lighter effects.
+- **Smarter loading.** All the 3D code is downloaded separately from the page (the main bundle is about 365 KB), the print layers and drink colours are prepared ahead of time, and shaders are compiled in the background so the page doesn't freeze on first view.
+- **Draws only when needed.** Nothing is drawn while the bottles are off screen or the tab is hidden. When the visitor isn't interacting, weaker devices run the idle motion at half speed to save power.
+- **Lighter effects.** Background glows use soft gradients instead of blur filters; frosted-glass blurs are kept only on high quality.
+- **Silent fallback.** If a browser can't run 3D at all, or the 3D crashes, the bottle photos are shown instead, so the store always works.
+
 ## Getting started
 
 Requires [Node.js](https://nodejs.org/) 20.19+ or 22.12+ (needed by Vite).
@@ -74,22 +85,30 @@ Then open the address Vite prints (usually http://localhost:5173).
 
 ```
 public/                 3D bottle models (.glb, meshopt + WebP compressed) and images
+  print/                Pre-made print layers for the bottles (see scripts/)
+scripts/
+  make-print-masks.py   Builds public/print/ from the full-resolution models
 src/
   App.tsx               Landing page, carousel, header, story section, footer
   components/
+    SharedCanvas.tsx    The single WebGL canvas, frame driver and quality watcher
+    SceneView.tsx       A placeholder div that the shared canvas draws a scene into
     BottleModel.tsx     Carousel bottle scene, detail scene, free rotation, bubbles
     LiquidBottle.tsx    Glass, liquid physics, printed artwork and flavour headline
     DrinkDetail.tsx     Detail view card
     CartDrawer.tsx      Cart, mix pack discount and checkout
     ContactPanel.tsx    Contact form
     Loader.tsx          Loading screen
+    LiteBottle.tsx      Photo bottles used when 3D isn't available
     OrderConfirmation.tsx, SidePanel.tsx
   data/drinks.ts        Flavours, prices and ingredient info
   hooks/useCart.ts      Cart state (saved in localStorage)
+  lib/quality.ts        Device quality tiers and the 2D fallback
+  lib/sceneViews.ts, lib/sceneStatus.ts   Shared-canvas view registry and loading status
   lib/sound.ts          Web Audio sound effects
 ```
 
 ## Notes
 
 - This is a demo store: checkout and the contact form do not send anything.
-- The liquid and glass effects need WebGL and run best with a graphics card; very old or low-power devices may stutter.
+- The full liquid and glass effects need a graphics card; other devices get a lighter quality level automatically.
