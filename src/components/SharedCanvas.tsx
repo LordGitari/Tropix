@@ -143,9 +143,10 @@ function Views() {
   return entries.map(([id, entry]) => <ViewPortal key={id} {...entry} />);
 }
 
-// Watches the frame rate: drops a quality tier when it struggles (under ~45fps),
-// steps back up when there is headroom, and settles low if it keeps flip-flopping.
-// Starts a few seconds in, so the one-off work of loading isn't mistaken for a slow device.
+// Watches the frame rate and nudges the sharpness: down a step when it stays
+// clearly low (averaged over ~4 s, so a brief hitch from a tap doesn't count),
+// back up when there's headroom. Starts a few seconds in, so the one-off work
+// of loading isn't mistaken for a slow device.
 function FrameRateWatcher() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -155,11 +156,11 @@ function FrameRateWatcher() {
   if (!ready) return null;
   return (
     <PerformanceMonitor
-      bounds={(refreshRate) => (refreshRate > 90 ? [50, 90] : [45, 57])}
+      ms={500}
+      iterations={8}
+      bounds={(refreshRate) => (refreshRate > 90 ? [50, 85] : [38, 54])}
       onDecline={stepDown}
       onIncline={stepUp}
-      flipflops={3}
-      onFallback={stepDown}
     />
   );
 }

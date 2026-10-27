@@ -1,19 +1,21 @@
 import { useSyncExternalStore } from "react";
 
-// Rendering quality, picked per device. The effects (glass, shadows, bubbles)
-// are fixed for the visit; only the sharpness (dpr) is adjusted live by the
-// frame rate, since swapping effects mid-visit rebuilds shaders and hitches.
-//   high   – everything on: refractive glass, full-detail shadows, sharp rendering
-//   medium – lighter glass (reflections, no refraction pass), lighter shadows;
-//            still sharp (2x), since phones land here and their screens are 3x
-//   low    – as medium, plus softer (1.25x) rendering, low-detail shadows and fewer bubbles
+// Rendering quality, picked once per device from its hardware:
+//   high   – desktops: refractive glass, full-detail shadows
+//   medium – phones, tablets, mid-range PCs: lighter glass (reflections, no
+//            refraction pass), lighter shadows
+//   low    – weak devices: as medium, with low-detail shadows and fewer bubbles
+// These effects stay fixed for the visit (swapping them mid-visit rebuilds
+// shaders and hitches). Only the sharpness (dpr) is adjusted live, in small
+// steps, from the frame rate.
 export type Tier = "low" | "medium" | "high";
-const ORDER: Tier[] = ["low", "medium", "high"];
 
 export const QUALITY = {
+  // `dpr`: the sharpest the 3D is drawn (never above the screen's own density).
+  // Phones get the most: their screens are ~3x and the bottles are small there.
   high: { dpr: 2, refractiveGlass: true, shadowResolution: 512, bubbles: 42 },
-  medium: { dpr: 2, refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
-  low: { dpr: 1.25, refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
+  medium: { dpr: 2.5, refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
+  low: { dpr: 1.5, refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
 } as const;
 
 /** First guess from the hardware, before any frames have been measured. */
@@ -28,10 +30,11 @@ function detectTier(): Tier {
 }
 
 const webgl = webglSupport();
-// The device's best tier. Live adjustments can go below it, never above it.
-// Browsers drawing 3D in software (no graphics card) start and stay at low.
-const ceiling: Tier = webgl === "software" ? "low" : detectTier();
-let tier: Tier = ceiling;
+// Browsers drawing 3D in software (no graphics card) get the low tier.
+const tier: Tier = webgl === "software" ? "low" : detectTier();
+
+/** Effects for this visit, picked once from the device. */
+export const effects = QUALITY[tier];
 
 const listeners = new Set<() => void>();
 const subscribe = (l: () => void) => {
@@ -39,33 +42,40 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-function setTier(next: Tier) {
-  if (next === tier) return;
-  tier = next;
+// ── Live sharpness ──
+// Starts at the tier's sharpest. A sustained low frame rate lowers it a step;
+// headroom raises it again. If a raised step proves too much, the top is capped
+// just below it, so it settles instead of bouncing up and down.
+const DPR_STEP = 0.25;
+const MIN_DPR = 1;
+const deviceDpr = Math.max(1, window.devicePixelRatio || 1);
+let maxDpr: number = Math.min(effects.dpr, deviceDpr);
+let dpr = maxDpr;
+let lastStep: "up" | "down" | null = null;
+
+function setDpr(next: number) {
+  if (next === dpr) return;
+  dpr = next;
   listeners.forEach((l) => l());
 }
 
-/** Frame rate is struggling: drop one tier (low is the floor; the 3D stays on). */
+/** Frame rate is struggling: a little less sharp. */
 export function stepDown() {
-  setTier(ORDER[Math.max(0, ORDER.indexOf(tier) - 1)]);
+  if (lastStep === "up") maxDpr = Math.max(MIN_DPR, dpr - DPR_STEP);
+  lastStep = "down";
+  setDpr(Math.max(MIN_DPR, dpr - DPR_STEP));
 }
 
-/** Frame rate has headroom: go back up one tier, at most to the device's best. */
+/** Frame rate has headroom: a little sharper, up to the cap. */
 export function stepUp() {
-  setTier(ORDER[Math.min(ORDER.indexOf(ceiling), ORDER.indexOf(tier) + 1)]);
+  if (dpr >= maxDpr) return;
+  lastStep = "up";
+  setDpr(Math.min(maxDpr, dpr + DPR_STEP));
 }
 
-export function useQualityTier() {
-  return useSyncExternalStore(subscribe, () => tier);
-}
-
-/** Sharpness for the current tier; changes live with the frame rate. */
 export function useDpr() {
-  return QUALITY[useQualityTier()].dpr;
+  return useSyncExternalStore(subscribe, () => dpr);
 }
-
-/** Effects for this visit, picked once from the device's best tier. */
-export const effects = QUALITY[ceiling];
 
 // ── Lite mode ──
 // A silent 2D backup (bottle photos, same layout, cart and checkout) used only
@@ -102,9 +112,10 @@ export function useLiteMode() {
   return useSyncExternalStore(subscribe, () => lite);
 }
 
-/** Frosted-glass blurs are kept only where they're cheap: high quality, full 3D. */
+/** Frosted-glass blurs are kept only where they're cheap: high quality, full 3D, full sharpness. */
 export function useRichEffects() {
-  const tier = useQualityTier();
+  const sharpness = useDpr();
   const lite = useLiteMode();
-  return tier === "high" && lite === null;
+  // Dropped as soon as the frame rate has needed the sharpness lowered.
+  return tier === "high" && lite === null && sharpness >= maxDpr;
 }
