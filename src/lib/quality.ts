@@ -4,15 +4,16 @@ import { useSyncExternalStore } from "react";
 // are fixed for the visit; only the sharpness (dpr) is adjusted live by the
 // frame rate, since swapping effects mid-visit rebuilds shaders and hitches.
 //   high   – everything on: refractive glass, full-detail shadows, sharp rendering
-//   medium – lighter glass (reflections, no refraction pass), lighter shadows
-//   low    – as medium, plus 1x rendering, low-detail shadows and fewer bubbles
+//   medium – lighter glass (reflections, no refraction pass), lighter shadows;
+//            still sharp (2x), since phones land here and their screens are 3x
+//   low    – as medium, plus softer (1.25x) rendering, low-detail shadows and fewer bubbles
 export type Tier = "low" | "medium" | "high";
 const ORDER: Tier[] = ["low", "medium", "high"];
 
 export const QUALITY = {
   high: { dpr: 2, refractiveGlass: true, shadowResolution: 512, bubbles: 42 },
-  medium: { dpr: 1.5, refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
-  low: { dpr: 1, refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
+  medium: { dpr: 2, refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
+  low: { dpr: 1.25, refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
 } as const;
 
 /** First guess from the hardware, before any frames have been measured. */
