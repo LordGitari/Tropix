@@ -50,6 +50,27 @@ function useFade(ref: RefObject<THREE.Object3D | null>, fade?: MotionValue<numbe
   });
 }
 
+// The swaying bottle is round, so its contact shadow only changes while it
+// lifts on hover or drops back. Re-draw the shadow then (and while it fades in);
+// the rest of the time the last one is kept instead of re-drawing it every frame.
+const SHADOW_SETTLE_MS = 1500;
+
+function useLiveShadow(hovered: boolean, fade?: MotionValue<number>) {
+  const [live, setLive] = useState(true);
+  const liveUntil = useRef(0);
+  const lastHovered = useRef(hovered);
+  useFrame(() => {
+    const now = performance.now();
+    if (hovered !== lastHovered.current) {
+      lastHovered.current = hovered;
+      liveUntil.current = now + SHADOW_SETTLE_MS;
+    }
+    const settled = now > liveUntil.current && (fade?.get() ?? 1) >= 0.999;
+    if (settled === live) setLive(!settled);
+  });
+  return live;
+}
+
 interface BottleModelProps {
   modelPath: string;
   hovered: boolean;
@@ -118,6 +139,7 @@ export function BottleScene({
   const root = useRef<THREE.Group>(null);
   useFade(root, fade);
   const { shadowResolution } = effects;
+  const shadowLive = useLiveShadow(hovered, fade);
   // Models span y = -0.95..0.95. Shifting the scene down leaves headroom for
   // the hover lift + scale, and puts the contact shadow just under the base.
   return (
@@ -129,7 +151,7 @@ export function BottleScene({
       <pointLight position={[0, -2, 2]} intensity={hovered ? 0.8 : 0.2} color="#ffffff" />
       <StudioEnvironment />
       <group ref={root} position={[0, -0.12, 0]}>
-        <ContactShadows position={[0, -0.97, 0]} opacity={hovered ? 0.55 : 0.3} scale={2} blur={2} far={2} resolution={shadowResolution} />
+        <ContactShadows position={[0, -0.97, 0]} opacity={hovered ? 0.55 : 0.3} scale={2} blur={2} far={2} resolution={shadowResolution} frames={shadowLive ? Infinity : 1} />
         <BottleModel
           modelPath={modelPath}
           hovered={hovered}
