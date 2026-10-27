@@ -304,7 +304,10 @@ const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAA
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP = new THREE.Vector3();
 
-export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; modelPath: string }) {
+// `lightGlass`: use the cheaper glass even on high quality. The refractive glass
+// re-renders the whole view behind it, which is too costly for the four small
+// carousel bottles (and hardly visible at that size).
+export function LiquidBottle({ source, modelPath, lightGlass = false }: { source: THREE.Object3D; modelPath: string; lightGlass?: boolean }) {
   const drink = drinksData.find((d) => d.model === modelPath);
   const printTexture = useTexture(drink?.print ?? TRANSPARENT_PIXEL);
   const parts = useMemo(() => buildParts(source, drink, printTexture), [source, drink, printTexture]);
@@ -362,7 +365,7 @@ export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; mo
       <primitive object={parts.print} />
       {parts.headlineMat && <mesh geometry={HEADLINE_GEOMETRY} material={parts.headlineMat} />}
       <primitive object={parts.cap} />
-      <mesh geometry={GLASS_GEOMETRY} material={effects.refractiveGlass ? parts.glass : parts.glassLite} />
+      <mesh geometry={GLASS_GEOMETRY} material={effects.refractiveGlass && !lightGlass ? parts.glass : parts.glassLite} />
     </group>
   );
 }
