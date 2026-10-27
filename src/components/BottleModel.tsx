@@ -89,8 +89,8 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
   const targetScale = useRef(1);
   const currentScale = useRef(1);
   // Gentle sway around the front instead of a full spin, so the label stays readable.
+  // All bottles share the same clock and phase, so they sway left and right together.
   const swayAmount = useRef(1);
-  const [swayPhase] = useState(() => Math.random() * Math.PI * 2);
 
   useFrame(({ clock }, delta) => {
     if (!ref.current) return;
@@ -110,7 +110,7 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
     // Settle to face the viewer on hover; otherwise sway about ±25°, one full
     // sway every ~6 s.
     swayAmount.current += ((hovered ? 0 : 1) - swayAmount.current) * k(0.06);
-    ref.current.rotation.y = Math.sin(clock.elapsedTime * SWAY_SPEED + swayPhase) * 0.45 * swayAmount.current;
+    ref.current.rotation.y = Math.sin(clock.elapsedTime * SWAY_SPEED) * 0.45 * swayAmount.current;
   });
 
   return (
