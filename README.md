@@ -24,7 +24,7 @@ Built with React, Three.js (via React Three Fiber) and Framer Motion.
 - Ambient background of slowly drifting flavour-coloured glows, grain and vignette.
 - Hovering a bottle sends a colour ripple across the page and shows the flavour name in giant type behind it.
 - Bottles sway gently and turn to face you on hover, so the label is always readable.
-- On phones the carousel becomes a swipeable row that snaps to each bottle.
+- All four bottles are always on screen: a 2×2 grid on phones, a row that shrinks to fit on tablets, and full size on desktop.
 
 **Detail view**
 - Clicking a bottle floods the screen with its colour, then opens the detail view.
