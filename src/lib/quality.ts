@@ -12,9 +12,8 @@ export type Tier = "low" | "medium" | "high";
 
 export const QUALITY = {
   // `dpr`: the sharpest the 3D is drawn (never above the screen's own density).
-  // Phones get the most: their screens are ~3x and the bottles are small there.
   high: { dpr: 2, refractiveGlass: true, shadowResolution: 512, bubbles: 42 },
-  medium: { dpr: 2.5, refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
+  medium: { dpr: 2, refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
   low: { dpr: 1.5, refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
 } as const;
 
@@ -31,7 +30,7 @@ function detectTier(): Tier {
 
 const webgl = webglSupport();
 // Browsers drawing 3D in software (no graphics card) get the low tier.
-const tier: Tier = webgl === "software" ? "low" : detectTier();
+export const tier: Tier = webgl === "software" ? "low" : detectTier();
 
 /** Effects for this visit, picked once from the device. */
 export const effects = QUALITY[tier];
@@ -48,7 +47,7 @@ const subscribe = (l: () => void) => {
 // just below it, so it settles instead of bouncing up and down.
 const DPR_STEP = 0.25;
 const MIN_DPR = 1;
-const deviceDpr = Math.max(1, window.devicePixelRatio || 1);
+export const deviceDpr = Math.max(1, window.devicePixelRatio || 1);
 let maxDpr: number = Math.min(effects.dpr, deviceDpr);
 let dpr = maxDpr;
 let lastStep: "up" | "down" | null = null;

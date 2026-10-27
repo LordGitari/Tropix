@@ -2,7 +2,7 @@ import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useSt
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { PerformanceMonitor, useProgress } from "@react-three/drei";
 import * as THREE from "three";
-import { goLite, stepDown, stepUp, useDpr } from "../lib/quality";
+import { deviceDpr, goLite, stepDown, stepUp, tier, useDpr } from "../lib/quality";
 import { reportDownloads, viewPreparing, viewReady } from "../lib/sceneStatus";
 import { useViewEntries, type ViewEntry } from "../lib/sceneViews";
 
@@ -165,6 +165,25 @@ function FrameRateWatcher() {
   );
 }
 
+// ?debug in the address shows the frame rate and sharpness in a corner.
+const DEBUG = new URLSearchParams(window.location.search).has("debug");
+
+function DebugReadout({ onSample }: { onSample: (text: string) => void }) {
+  const gl = useThree((s) => s.gl);
+  const count = useRef({ frames: 0, since: -1 });
+  useFrame(({ clock }) => {
+    const c = count.current;
+    const now = clock.elapsedTime;
+    if (c.since < 0) c.since = now;
+    c.frames++;
+    if (now - c.since < 0.5) return;
+    onSample(`${Math.round(c.frames / (now - c.since))} fps · ${gl.getPixelRatio()}x of ${deviceDpr}x · ${tier}`);
+    c.frames = 0;
+    c.since = now;
+  });
+  return null;
+}
+
 // Passes model/texture download progress to the loading screen.
 function DownloadReporter() {
   const { progress, active, errors } = useProgress();
@@ -207,13 +226,19 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
   const dpr = useDpr();
   // The frame-rate watcher only judges the device while frames are being drawn.
   const [drawing, setDrawing] = useState(false);
+  const [readout, setReadout] = useState("");
   return (
+    <>
+    {DEBUG && <div className="fixed top-2 left-2 z-50 px-2 py-1 rounded bg-black/80 text-white text-xs font-mono pointer-events-none">{readout}</div>}
     <Canvas
       frameloop="demand"
       eventSource={eventSource as RefObject<HTMLElement>}
       eventPrefix="client"
       dpr={[1, dpr]}
-      gl={{ antialias: true, alpha: true }}
+      // Edge smoothing (MSAA) draws every pixel several times over; on dense
+      // (2x+) screens the jaggies are too small to see, so it's skipped there.
+      // high-performance: use the dedicated graphics chip on dual-GPU laptops.
+      gl={{ antialias: deviceDpr < 2, alpha: true, powerPreference: "high-performance" }}
       style={{ position: "fixed", inset: 0, zIndex: 20, pointerEvents: "none" }}
       // Weak devices sometimes drop the 3D context (e.g. after switching apps):
       // fall back to lite mode rather than show empty bottle slots.
@@ -224,6 +249,8 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
       <FrameDriver onVisible={setDrawing} />
       {drawing && <FrameRateWatcher />}
       <Views />
+      {DEBUG && <DebugReadout onSample={setReadout} />}
     </Canvas>
+    </>
   );
 }
