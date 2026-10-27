@@ -2,7 +2,7 @@ import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useSt
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { PerformanceMonitor, useProgress } from "@react-three/drei";
 import * as THREE from "three";
-import { deviceDpr, goLite, stepDown, stepUp, tier, useDpr } from "../lib/quality";
+import { deviceDpr, goLite, stepDown, stepUp, useDpr } from "../lib/quality";
 import { reportDownloads, viewPreparing, viewReady } from "../lib/sceneStatus";
 import { useViewEntries, type ViewEntry } from "../lib/sceneViews";
 
@@ -143,9 +143,9 @@ function Views() {
   return entries.map(([id, entry]) => <ViewPortal key={id} {...entry} />);
 }
 
-// Watches the frame rate and nudges the sharpness: down a step when it stays
-// clearly low (averaged over ~4 s, so a brief hitch from a tap doesn't count),
-// back up when there's headroom. Starts a few seconds in, so the one-off work
+// Watches the frame rate and nudges the sharpness: down a step only when it
+// stays really low (under ~24 fps, averaged over ~4 s, so a brief hitch from a
+// tap doesn't count), back up when there's headroom. Starts a few seconds in, so the one-off work
 // of loading isn't mistaken for a slow device.
 function FrameRateWatcher() {
   const [ready, setReady] = useState(false);
@@ -158,30 +158,11 @@ function FrameRateWatcher() {
     <PerformanceMonitor
       ms={500}
       iterations={8}
-      bounds={(refreshRate) => (refreshRate > 90 ? [50, 85] : [38, 54])}
+      bounds={(refreshRate) => (refreshRate > 90 ? [30, 80] : [24, 50])}
       onDecline={stepDown}
       onIncline={stepUp}
     />
   );
-}
-
-// ?debug in the address shows the frame rate and sharpness in a corner.
-const DEBUG = new URLSearchParams(window.location.search).has("debug");
-
-function DebugReadout({ onSample }: { onSample: (text: string) => void }) {
-  const gl = useThree((s) => s.gl);
-  const count = useRef({ frames: 0, since: -1 });
-  useFrame(({ clock }) => {
-    const c = count.current;
-    const now = clock.elapsedTime;
-    if (c.since < 0) c.since = now;
-    c.frames++;
-    if (now - c.since < 0.5) return;
-    onSample(`${Math.round(c.frames / (now - c.since))} fps · ${gl.getPixelRatio()}x of ${deviceDpr}x · ${tier}`);
-    c.frames = 0;
-    c.since = now;
-  });
-  return null;
 }
 
 // Passes model/texture download progress to the loading screen.
@@ -226,10 +207,7 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
   const dpr = useDpr();
   // The frame-rate watcher only judges the device while frames are being drawn.
   const [drawing, setDrawing] = useState(false);
-  const [readout, setReadout] = useState("");
   return (
-    <>
-    {DEBUG && <div className="fixed top-2 left-2 z-50 px-2 py-1 rounded bg-black/80 text-white text-xs font-mono pointer-events-none">{readout}</div>}
     <Canvas
       frameloop="demand"
       eventSource={eventSource as RefObject<HTMLElement>}
@@ -249,8 +227,6 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
       <FrameDriver onVisible={setDrawing} />
       {drawing && <FrameRateWatcher />}
       <Views />
-      {DEBUG && <DebugReadout onSample={setReadout} />}
     </Canvas>
-    </>
   );
 }

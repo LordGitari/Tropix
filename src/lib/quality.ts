@@ -1,20 +1,18 @@
 import { useSyncExternalStore } from "react";
 
-// Rendering quality, picked once per device from its hardware:
-//   high   – desktops: refractive glass, full-detail shadows
+// Every device gets sharp 3D (see SHARPNESS below). On top of that, the effects
+// scale with the machine, picked once from its hardware:
+//   high   – desktops: refractive glass, full-detail shadows, most bubbles
 //   medium – phones, tablets, mid-range PCs: lighter glass (reflections, no
 //            refraction pass), lighter shadows
 //   low    – weak devices: as medium, with low-detail shadows and fewer bubbles
-// These effects stay fixed for the visit (swapping them mid-visit rebuilds
-// shaders and hitches). Only the sharpness (dpr) is adjusted live, in small
-// steps, from the frame rate.
+// These stay fixed for the visit (swapping them mid-visit rebuilds shaders and hitches).
 export type Tier = "low" | "medium" | "high";
 
 export const QUALITY = {
-  // `dpr`: the sharpest the 3D is drawn (never above the screen's own density).
-  high: { dpr: 2, refractiveGlass: true, shadowResolution: 512, bubbles: 42 },
-  medium: { dpr: 2, refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
-  low: { dpr: 1.5, refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
+  high: { refractiveGlass: true, shadowResolution: 512, bubbles: 42 },
+  medium: { refractiveGlass: false, shadowResolution: 256, bubbles: 30 },
+  low: { refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
 } as const;
 
 /** First guess from the hardware, before any frames have been measured. */
@@ -30,7 +28,7 @@ function detectTier(): Tier {
 
 const webgl = webglSupport();
 // Browsers drawing 3D in software (no graphics card) get the low tier.
-export const tier: Tier = webgl === "software" ? "low" : detectTier();
+const tier: Tier = webgl === "software" ? "low" : detectTier();
 
 /** Effects for this visit, picked once from the device. */
 export const effects = QUALITY[tier];
@@ -41,14 +39,15 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-// ── Live sharpness ──
-// Starts at the tier's sharpest. A sustained low frame rate lowers it a step;
-// headroom raises it again. If a raised step proves too much, the top is capped
-// just below it, so it settles instead of bouncing up and down.
-const DPR_STEP = 0.25;
-const MIN_DPR = 1;
+// ── Sharpness ──
+// All devices draw the 3D at 2x (or the screen's own density, if lower). Only a
+// device that stays really slow is softened, a step at a time, and never below
+// 1.5x. If a raised step proves too much, the top is capped just below it, so
+// it settles instead of bouncing up and down.
+const SHARPNESS = { max: 2, min: 1.5, step: 0.25 };
 export const deviceDpr = Math.max(1, window.devicePixelRatio || 1);
-let maxDpr: number = Math.min(effects.dpr, deviceDpr);
+const MIN_DPR = Math.min(SHARPNESS.min, deviceDpr);
+let maxDpr = Math.min(SHARPNESS.max, deviceDpr);
 let dpr = maxDpr;
 let lastStep: "up" | "down" | null = null;
 
@@ -58,18 +57,18 @@ function setDpr(next: number) {
   listeners.forEach((l) => l());
 }
 
-/** Frame rate is struggling: a little less sharp. */
+/** Frame rate is really struggling: a little less sharp (down to the floor). */
 export function stepDown() {
-  if (lastStep === "up") maxDpr = Math.max(MIN_DPR, dpr - DPR_STEP);
+  if (lastStep === "up") maxDpr = Math.max(MIN_DPR, dpr - SHARPNESS.step);
   lastStep = "down";
-  setDpr(Math.max(MIN_DPR, dpr - DPR_STEP));
+  setDpr(Math.max(MIN_DPR, dpr - SHARPNESS.step));
 }
 
-/** Frame rate has headroom: a little sharper, up to the cap. */
+/** Frame rate has headroom again: a little sharper, up to the cap. */
 export function stepUp() {
   if (dpr >= maxDpr) return;
   lastStep = "up";
-  setDpr(Math.min(maxDpr, dpr + DPR_STEP));
+  setDpr(Math.min(maxDpr, dpr + SHARPNESS.step));
 }
 
 export function useDpr() {
