@@ -71,8 +71,8 @@ function TiltBottle({ drink, index, introComplete, launch, launchIndex, hoveredD
     : launch === "other" ? { y: 180, scale: 0.9, opacity: 0, rotate: index < launchIndex ? -10 : 10 }
     : { y: 0, scale: 1, opacity: introComplete ? 1 : 0, rotate: 0 };
   const transition =
-    launch === "chosen" ? { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const, opacity: { delay: 0.2, duration: 0.25 } }
-    : launch === "other" ? { duration: 0.4, ease: [0.55, 0, 1, 0.45] as const, delay: Math.abs(index - launchIndex) * 0.05 }
+    launch === "chosen" ? { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const, opacity: { delay: 0.1, duration: 0.15 } }
+    : launch === "other" ? { duration: 0.22, ease: [0.55, 0, 1, 0.45] as const, delay: Math.abs(index - launchIndex) * 0.03 }
     : { delay: index * 0.12, type: "spring" as const, stiffness: 260, damping: 20 };
 
   return (
@@ -157,7 +157,7 @@ export default function App() {
       setSelectedDrink(drink);
       setIsExpanded(true);
       setLaunching(null);
-    }, 450);
+    }, 250);
   };
 
   useEffect(() => () => clearTimeout(launchTimer.current), []);
@@ -390,7 +390,7 @@ export default function App() {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50, transition: { duration: 0.3, ease: "easeIn" } }}
-              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
               className="w-full mt-8"
               style={{ opacity: detailOpacity }}
             >

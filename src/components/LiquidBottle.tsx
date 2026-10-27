@@ -1,5 +1,5 @@
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { drinksData, type Drink } from "../data/drinks";
@@ -304,6 +304,31 @@ const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAA
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP = new THREE.Vector3();
 
+// The refractive glass's shader is costly to build, and nothing else on the
+// landing page uses it. So the detail bottle starts with the light glass (whose
+// shader is already built) and switches once the refractive one has been
+// compiled in the background. Only the first time; after that it's instant.
+let refractionCompiled = false;
+
+function useRefractionReady(glass: THREE.Material | undefined) {
+  const { gl, camera, scene } = useThree();
+  const [ready, setReady] = useState(refractionCompiled);
+  useEffect(() => {
+    if (!glass || refractionCompiled) return;
+    let cancelled = false;
+    gl.compileAsync(new THREE.Mesh(GLASS_GEOMETRY, glass), camera, scene)
+      .catch(() => {})
+      .then(() => {
+        refractionCompiled = true;
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [glass, gl, camera, scene]);
+  return !!glass && ready;
+}
+
 // `lightGlass`: use the cheaper glass even on high quality. The refractive glass
 // re-renders the whole view behind it, which is too costly for the four small
 // carousel bottles (and hardly visible at that size).
@@ -311,6 +336,7 @@ export function LiquidBottle({ source, modelPath, lightGlass = false }: { source
   const drink = drinksData.find((d) => d.model === modelPath);
   const printTexture = useTexture(drink?.print ?? TRANSPARENT_PIXEL);
   const parts = useMemo(() => buildParts(source, drink, printTexture), [source, drink, printTexture]);
+  const refraction = useRefractionReady(effects.refractiveGlass && !lightGlass ? parts?.glass : undefined);
   const liquidMesh = useRef<THREE.Mesh>(null);
   const heights = useRef<Float32Array>(null);
   const level = useRef({ cx: NaN, cy: NaN, cz: NaN, value: 0 });
@@ -365,7 +391,7 @@ export function LiquidBottle({ source, modelPath, lightGlass = false }: { source
       <primitive object={parts.print} />
       {parts.headlineMat && <mesh geometry={HEADLINE_GEOMETRY} material={parts.headlineMat} />}
       <primitive object={parts.cap} />
-      <mesh geometry={GLASS_GEOMETRY} material={effects.refractiveGlass && !lightGlass ? parts.glass : parts.glassLite} />
+      <mesh geometry={GLASS_GEOMETRY} material={refraction ? parts.glass : parts.glassLite} />
     </group>
   );
 }

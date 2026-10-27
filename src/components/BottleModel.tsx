@@ -201,7 +201,7 @@ function BottleSwapper({ modelPath, direction }: { modelPath: string; direction:
     }
 
     if (phase.current === "open") {
-      t.current = Math.min(1, t.current + delta * 1.1);
+      t.current = Math.min(1, t.current + delta * 1.7);
       const e = ease.out(t.current);
       g.position.set(0, (1 - e) * -2.4, 0);
       g.rotation.y = (1 - e) * Math.PI * 2;
