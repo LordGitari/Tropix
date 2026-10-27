@@ -71,6 +71,8 @@ function useLiveShadow(hovered: boolean, fade?: MotionValue<number>) {
   return live;
 }
 
+const SWAY_SPEED = 1.05; // radians per second of the sway cycle
+
 interface BottleModelProps {
   modelPath: string;
   hovered: boolean;
@@ -105,9 +107,10 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
     ref.current.position.y = currentY.current;
     ref.current.scale.setScalar(currentScale.current);
 
-    // Settle to face the viewer on hover; otherwise sway about ±25°.
+    // Settle to face the viewer on hover; otherwise sway about ±25°, one full
+    // sway every ~6 s.
     swayAmount.current += ((hovered ? 0 : 1) - swayAmount.current) * k(0.06);
-    ref.current.rotation.y = Math.sin(clock.elapsedTime * 0.6 + swayPhase) * 0.45 * swayAmount.current;
+    ref.current.rotation.y = Math.sin(clock.elapsedTime * SWAY_SPEED + swayPhase) * 0.45 * swayAmount.current;
   });
 
   return (
