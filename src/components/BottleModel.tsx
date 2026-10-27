@@ -4,7 +4,7 @@ import { useGLTF, ContactShadows, Float, Environment, Lightformer } from "@react
 import type { MotionValue } from "framer-motion";
 import * as THREE from "three";
 import { LiquidBottle } from "./LiquidBottle";
-import { useQuality } from "../lib/quality";
+import { effects } from "../lib/quality";
 
 // Something for the glass to reflect: light strips either side, softbox on top.
 function StudioEnvironment() {
@@ -117,7 +117,7 @@ export function BottleScene({
 }) {
   const root = useRef<THREE.Group>(null);
   useFade(root, fade);
-  const { shadowResolution } = useQuality();
+  const { shadowResolution } = effects;
   // Models span y = -0.95..0.95. Shifting the scene down leaves headroom for
   // the hover lift + scale, and puts the contact shadow just under the base.
   return (
@@ -223,7 +223,7 @@ const BUBBLE_TOP = 1.3;
 
 function Bubbles({ color }: { color: string }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
-  const count = useQuality().bubbles; // fewer on lower quality tiers
+  const count = effects.bubbles; // fewer on lower quality tiers
   const bubbles = useRef(BUBBLE_SEEDS.map((b) => ({ ...b })));
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
@@ -336,7 +336,7 @@ export function DetailScene({ modelPath, direction, bgFrom, bgTo, track, fade }:
 }) {
   const root = useRef<THREE.Group>(null);
   useFade(root, fade);
-  const { shadowResolution } = useQuality();
+  const { shadowResolution } = effects;
   return (
     <>
       <ambientLight intensity={0.9} />

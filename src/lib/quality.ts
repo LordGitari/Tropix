@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
 
-// Rendering quality, picked per device and adjusted live by the frame rate.
+// Rendering quality, picked per device. The effects (glass, shadows, bubbles)
+// are fixed for the visit; only the sharpness (dpr) is adjusted live by the
+// frame rate, since swapping effects mid-visit rebuilds shaders and hitches.
 //   high   – everything on: refractive glass, full-detail shadows, sharp rendering
 //   medium – lighter glass (reflections, no refraction pass), lighter shadows
 //   low    – as medium, plus 1x rendering, low-detail shadows and fewer bubbles
@@ -56,9 +58,13 @@ export function useQualityTier() {
   return useSyncExternalStore(subscribe, () => tier);
 }
 
-export function useQuality() {
-  return QUALITY[useQualityTier()];
+/** Sharpness for the current tier; changes live with the frame rate. */
+export function useDpr() {
+  return QUALITY[useQualityTier()].dpr;
 }
+
+/** Effects for this visit, picked once from the device's best tier. */
+export const effects = QUALITY[ceiling];
 
 // ── Lite mode ──
 // A silent 2D backup (bottle photos, same layout, cart and checkout) used only

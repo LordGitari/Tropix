@@ -2,7 +2,7 @@ import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useSt
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { PerformanceMonitor, useProgress } from "@react-three/drei";
 import * as THREE from "three";
-import { goLite, stepDown, stepUp, useQuality, useQualityTier } from "../lib/quality";
+import { goLite, stepDown, stepUp, useDpr, useQualityTier } from "../lib/quality";
 import { reportDownloads, viewPreparing, viewReady } from "../lib/sceneStatus";
 import { useViewEntries, type ViewEntry } from "../lib/sceneViews";
 
@@ -232,7 +232,7 @@ function FrameDriver({ onFullSpeed }: { onFullSpeed: (full: boolean) => void }) 
 }
 
 export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLElement | null> }) {
-  const quality = useQuality();
+  const dpr = useDpr();
   // The frame-rate watcher only judges the device while frames run at full speed.
   const [fullSpeed, setFullSpeed] = useState(false);
   return (
@@ -240,7 +240,7 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
       frameloop="demand"
       eventSource={eventSource as RefObject<HTMLElement>}
       eventPrefix="client"
-      dpr={[1, quality.dpr]}
+      dpr={[1, dpr]}
       gl={{ antialias: true, alpha: true }}
       style={{ position: "fixed", inset: 0, zIndex: 20, pointerEvents: "none" }}
       // Weak devices sometimes drop the 3D context (e.g. after switching apps):

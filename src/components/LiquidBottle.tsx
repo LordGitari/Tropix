@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { drinksData, type Drink } from "../data/drinks";
-import { useQuality } from "../lib/quality";
+import { effects } from "../lib/quality";
 
 // The source models are a single solid mesh with the drink painted on, so the
 // bottle is rebuilt from parts:
@@ -305,7 +305,6 @@ const UP = new THREE.Vector3(0, 1, 0);
 const TMP = new THREE.Vector3();
 
 export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; modelPath: string }) {
-  const { refractiveGlass } = useQuality();
   const drink = drinksData.find((d) => d.model === modelPath);
   const printTexture = useTexture(drink?.print ?? TRANSPARENT_PIXEL);
   const parts = useMemo(() => buildParts(source, drink, printTexture), [source, drink, printTexture]);
@@ -363,7 +362,7 @@ export function LiquidBottle({ source, modelPath }: { source: THREE.Object3D; mo
       <primitive object={parts.print} />
       {parts.headlineMat && <mesh geometry={HEADLINE_GEOMETRY} material={parts.headlineMat} />}
       <primitive object={parts.cap} />
-      <mesh geometry={GLASS_GEOMETRY} material={refractiveGlass ? parts.glass : parts.glassLite} />
+      <mesh geometry={GLASS_GEOMETRY} material={effects.refractiveGlass ? parts.glass : parts.glassLite} />
     </group>
   );
 }
