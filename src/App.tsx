@@ -282,22 +282,6 @@ export default function App() {
         <div className="flex items-center gap-4 sm:gap-6">
         <button
           type="button"
-          onClick={toggleSound}
-          aria-label={soundOff ? "Turn sound on" : "Turn sound off"}
-          aria-pressed={!soundOff}
-          className="w-11 h-11 rounded-full border border-white/25 text-white flex items-center justify-center transition-all duration-300 hover:bg-white hover:text-black"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M11 5 6 9H3v6h3l5 4V5z" />
-            {soundOff ? (
-              <path d="m22 9-6 6M16 9l6 6" />
-            ) : (
-              <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
-            )}
-          </svg>
-        </button>
-        <button
-          type="button"
           onClick={() => setContactOpen(true)}
           className="text-white font-bold text-xs sm:text-sm tracking-wider sm:tracking-widest whitespace-nowrap uppercase relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1.5px] after:bg-white after:transition-all after:duration-300 hover:after:w-full"
         >
@@ -452,6 +436,18 @@ export default function App() {
               "Crafted with intention. Enjoyed without compromise."
             </p>
             <p className="text-white/20 text-xs tracking-widest uppercase mt-2">&copy; {new Date().getFullYear()} TROPIX Beverages. All rights reserved.</p>
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-pressed={!soundOff}
+              className="flex items-center gap-1.5 text-white/30 text-[10px] tracking-widest uppercase transition-colors hover:text-white/70"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M11 5 6 9H3v6h3l5 4V5z" />
+                {soundOff ? <path d="m22 9-6 6M16 9l6 6" /> : <path d="M15.5 8.5a5 5 0 0 1 0 7" />}
+              </svg>
+              Sound: {soundOff ? "off" : "on"}
+            </button>
           </motion.div>
 
         </div>
