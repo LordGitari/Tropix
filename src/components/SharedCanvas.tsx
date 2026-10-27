@@ -2,7 +2,7 @@ import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useSt
 import { Canvas, createPortal, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { PerformanceMonitor, useProgress } from "@react-three/drei";
 import * as THREE from "three";
-import { goLite, stepDown, stepUp, useDpr, useQualityTier } from "../lib/quality";
+import { goLite, stepDown, stepUp, useDpr } from "../lib/quality";
 import { reportDownloads, viewPreparing, viewReady } from "../lib/sceneStatus";
 import { useViewEntries, type ViewEntry } from "../lib/sceneViews";
 
@@ -172,69 +172,40 @@ function DownloadReporter() {
 }
 
 // ── Render only when needed ──
-// The canvas runs on demand: this driver asks for frames itself, and only
-//   - while at least one 3D view is on screen (scroll away and the 3D stops), and
-//   - at full speed while the visitor is interacting (moving the pointer, dragging,
-//     scrolling, typing) or on high quality; otherwise at half speed, which is
-//     plenty for the gentle idle motion and halves the work on weaker devices.
-// Hidden tabs already get no frames at all (the browser pauses them).
-const ACTIVE_FOR_MS = 2500;
-let lastInteraction = performance.now();
-
-function useInteractionClock() {
-  useEffect(() => {
-    const mark = () => {
-      lastInteraction = performance.now();
-    };
-    const events = ["pointermove", "pointerdown", "wheel", "keydown", "touchstart"] as const;
-    events.forEach((e) => window.addEventListener(e, mark, { passive: true }));
-    // Capture catches scrolling inside any element too (e.g. the phone carousel).
-    window.addEventListener("scroll", mark, { passive: true, capture: true });
-    return () => {
-      events.forEach((e) => window.removeEventListener(e, mark));
-      window.removeEventListener("scroll", mark, { capture: true });
-    };
-  }, []);
-}
-
+// The canvas runs on demand: this driver asks for a frame on every display
+// refresh while at least one 3D view is on screen, and none otherwise (scroll
+// away and the 3D stops). Hidden tabs get no frames at all (the browser pauses them).
 function onScreen(el: HTMLElement | null) {
   if (!el) return false;
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth;
 }
 
-function FrameDriver({ onFullSpeed }: { onFullSpeed: (full: boolean) => void }) {
+function FrameDriver({ onVisible }: { onVisible: (visible: boolean) => void }) {
   const invalidate = useThree((s) => s.invalidate);
   const entries = useViewEntries();
-  const highQuality = useQualityTier() === "high";
-  useInteractionClock();
 
   useEffect(() => {
     let raf = 0;
-    let tick = 0;
-    let wasFull: boolean | null = null;
-    let wasVisible = true;
+    let wasVisible: boolean | null = null;
     const loop = () => {
       raf = requestAnimationFrame(loop);
-      tick++;
       const visible = entries.some(([, v]) => onScreen(v.track.current));
-      const full = visible && (highQuality || performance.now() - lastInteraction < ACTIVE_FOR_MS);
-      if (full !== wasFull) onFullSpeed((wasFull = full));
       // Once every view has left the screen, draw one last (empty) frame so
       // the canvas is wiped clean instead of keeping the bottles' last picture.
-      if ((visible || wasVisible) && (full || tick % 2 === 0 || !visible)) invalidate();
-      wasVisible = visible;
+      if (visible || wasVisible) invalidate();
+      if (visible !== wasVisible) onVisible((wasVisible = visible));
     };
     loop();
     return () => cancelAnimationFrame(raf);
-  }, [entries, highQuality, invalidate, onFullSpeed]);
+  }, [entries, invalidate, onVisible]);
   return null;
 }
 
 export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLElement | null> }) {
   const dpr = useDpr();
-  // The frame-rate watcher only judges the device while frames run at full speed.
-  const [fullSpeed, setFullSpeed] = useState(false);
+  // The frame-rate watcher only judges the device while frames are being drawn.
+  const [drawing, setDrawing] = useState(false);
   return (
     <Canvas
       frameloop="demand"
@@ -249,8 +220,8 @@ export function SharedCanvas({ eventSource }: { eventSource: RefObject<HTMLEleme
     >
       <ClearFrame />
       <DownloadReporter />
-      <FrameDriver onFullSpeed={setFullSpeed} />
-      {fullSpeed && <FrameRateWatcher />}
+      <FrameDriver onVisible={setDrawing} />
+      {drawing && <FrameRateWatcher />}
       <Views />
     </Canvas>
   );

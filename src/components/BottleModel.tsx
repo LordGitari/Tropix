@@ -90,20 +90,23 @@ export function BottleModel({ modelPath, hovered, onClick, onPointerEnter, onPoi
   const swayAmount = useRef(1);
   const [swayPhase] = useState(() => Math.random() * Math.PI * 2);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     if (!ref.current) return;
 
     targetY.current = hovered ? 0.18 : 0;
     targetScale.current = hovered ? 1.12 : 1;
 
-    currentY.current += (targetY.current - currentY.current) * 0.08;
-    currentScale.current += (targetScale.current - currentScale.current) * 0.08;
+    // Ease towards the targets at the same speed whatever the frame rate
+    // (the factors are per 1/60 s).
+    const k = (perFrame: number) => 1 - Math.pow(1 - perFrame, Math.min(delta, 0.1) * 60);
+    currentY.current += (targetY.current - currentY.current) * k(0.08);
+    currentScale.current += (targetScale.current - currentScale.current) * k(0.08);
 
     ref.current.position.y = currentY.current;
     ref.current.scale.setScalar(currentScale.current);
 
     // Settle to face the viewer on hover; otherwise sway about ±25°.
-    swayAmount.current += ((hovered ? 0 : 1) - swayAmount.current) * 0.06;
+    swayAmount.current += ((hovered ? 0 : 1) - swayAmount.current) * k(0.06);
     ref.current.rotation.y = Math.sin(clock.elapsedTime * 0.6 + swayPhase) * 0.45 * swayAmount.current;
   });
 
