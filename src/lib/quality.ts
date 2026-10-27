@@ -13,15 +13,6 @@ export const QUALITY = {
   low: { dpr: 1, refractiveGlass: false, shadowResolution: 128, bubbles: 14 },
 } as const;
 
-function forcedTier(): Tier | null {
-  try {
-    const q = new URLSearchParams(window.location.search).get("quality");
-    return q && (ORDER as string[]).includes(q) ? (q as Tier) : null;
-  } catch {
-    return null;
-  }
-}
-
 /** First guess from the hardware, before any frames have been measured. */
 function detectTier(): Tier {
   const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
@@ -33,9 +24,10 @@ function detectTier(): Tier {
   return "high";
 }
 
-const forced = forcedTier();
+const webgl = webglSupport();
 // The device's best tier. Live adjustments can go below it, never above it.
-const ceiling: Tier = forced ?? detectTier();
+// Browsers drawing 3D in software (no graphics card) start and stay at low.
+const ceiling: Tier = webgl === "software" ? "low" : detectTier();
 let tier: Tier = ceiling;
 
 const listeners = new Set<() => void>();
@@ -50,16 +42,13 @@ function setTier(next: Tier) {
   listeners.forEach((l) => l());
 }
 
-/** Frame rate is struggling: drop one tier, or switch to lite mode if already at the lowest. */
+/** Frame rate is struggling: drop one tier (low is the floor; the 3D stays on). */
 export function stepDown() {
-  if (forced) return;
-  if (tier === "low") goLite("too-slow");
-  else setTier(ORDER[Math.max(0, ORDER.indexOf(tier) - 1)]);
+  setTier(ORDER[Math.max(0, ORDER.indexOf(tier) - 1)]);
 }
 
 /** Frame rate has headroom: go back up one tier, at most to the device's best. */
 export function stepUp() {
-  if (forced) return;
   setTier(ORDER[Math.min(ORDER.indexOf(ceiling), ORDER.indexOf(tier) + 1)]);
 }
 
@@ -72,9 +61,10 @@ export function useQuality() {
 }
 
 // ── Lite mode ──
-// A 2D version (bottle photos, same layout, cart and checkout) for devices that
-// can't run the 3D well, so the site always works.
-export type LiteReason = "forced" | "no-webgl" | "software" | "reduced-motion" | "crash" | "too-slow";
+// A silent 2D backup (bottle photos, same layout, cart and checkout) used only
+// when 3D can't work at all: the browser has no WebGL, or the 3D crashed.
+// Everyone else always gets the 3D site.
+export type LiteReason = "no-webgl" | "crash";
 
 /** Can this browser do hardware-accelerated WebGL? */
 function webglSupport(): "ok" | "software" | "none" {
@@ -92,40 +82,12 @@ function webglSupport(): "ok" | "software" | "none" {
   }
 }
 
-function initialLite(): LiteReason | null {
-  const param = (() => {
-    try {
-      return new URLSearchParams(window.location.search).get("lite");
-    } catch {
-      return null;
-    }
-  })();
-  if (param === "1") return "forced";
-  if (param === "0") return null;
-  const gl = webglSupport();
-  if (gl === "none") return "no-webgl";
-  if (gl === "software") return "software";
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return "reduced-motion";
-  return null;
-}
+let lite: LiteReason | null = webgl === "none" ? "no-webgl" : null;
 
-let lite: LiteReason | null = initialLite();
-// Set when the visitor chose "Try 3D" (or ?lite=0): only a crash switches back then.
-let chose3d = new URLSearchParams(window.location.search).get("lite") === "0";
-
-/** Switch to the 2D version. A crash always does; other reasons respect "Try 3D". */
+/** Switch to the 2D backup (after a 3D crash). */
 export function goLite(reason: LiteReason) {
-  if (lite || (chose3d && reason !== "crash")) return;
+  if (lite) return;
   lite = reason;
-  listeners.forEach((l) => l());
-}
-
-/** Visitor asked for the 3D version anyway. */
-export function leaveLite() {
-  if (!lite) return;
-  lite = null;
-  chose3d = true;
-  setTier("low"); // start gently; it steps up if the device copes
   listeners.forEach((l) => l());
 }
 

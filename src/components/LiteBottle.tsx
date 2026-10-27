@@ -1,8 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import type { Drink } from "../data/drinks";
-import { leaveLite, type LiteReason } from "../lib/quality";
 
-// Lite mode: the bottle photos stand in for the 3D models. Only cheap
+// Lite mode (the silent 2D backup): the bottle photos stand in for the 3D models. Only cheap
 // transform/opacity animations, so it stays smooth on any device.
 
 /** Carousel bottle: lifts and grows on hover, with a soft shadow underneath. */
@@ -51,36 +50,5 @@ export function LiteDetailBottle({ drink, direction }: { drink: Drink; direction
         />
       </AnimatePresence>
     </div>
-  );
-}
-
-const MESSAGES: Record<LiteReason, string> = {
-  forced: "Showing the light version",
-  "no-webgl": "Your browser can't show 3D, so here's the light version",
-  software: "Showing the light version for smoother browsing",
-  "reduced-motion": "Calmer light version (your device prefers reduced motion)",
-  crash: "3D stopped responding, so we switched to the light version",
-  "too-slow": "Switched to the light version for smoother browsing",
-};
-
-/** Small corner note while in lite mode, with a way back to 3D where possible. */
-export function LiteNotice({ reason }: { reason: LiteReason }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="fixed bottom-4 left-4 right-4 sm:right-auto z-40 flex items-center gap-3 rounded-full pl-4 pr-1 py-1 bg-black/70 border border-white/15 text-[11px] text-white/70"
-    >
-      <span className="flex-1">{MESSAGES[reason]}</span>
-      {reason !== "no-webgl" && (
-        <button
-          type="button"
-          onClick={leaveLite}
-          className="shrink-0 px-3 py-1.5 rounded-full bg-white text-black font-black tracking-widest uppercase text-[10px]"
-        >
-          Try 3D
-        </button>
-      )}
-    </motion.div>
   );
 }
